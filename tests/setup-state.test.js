@@ -162,3 +162,12 @@ test("the onboarding UI does not collect credentials or allow outbound connectio
   assert.doesNotMatch(styles, /url\(\s*["']?https?:/i);
 });
 
+
+test("every active setup stage shows an announced reset control", async () => {
+  const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+
+  assert.match(app, /function renderSetupResetControl\\(\\)\\s*\\{[\\s\\S]*?if \\(state\\.stage === "welcome"\\) return null;[\\s\\S]*?actionButton\\([\\s\\S]*?["']Reset setup simulation["']/);
+  assert.match(app, /Setup simulation reset\\. No real Wi-Fi or device changes were made\\./);
+  assert.match(app, /const stage = renderStage\\(\\);[\\s\\S]*?const resetControl = renderSetupResetControl\\(\\);[\\s\\S]*?if \\(resetControl\\) stage\\.append\\(resetControl\\);/);
+  assert.doesNotMatch(app, /Run setup again/);
+});

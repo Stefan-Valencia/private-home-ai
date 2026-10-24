@@ -7,6 +7,7 @@ This plan defines evidence to gather; it does not claim any checks have already 
 - Verify invalid transitions fail at every stage and reset returns to the initial state, including from partial setup.
 - Confirm the simulation does not ask for passwords or access Wi-Fi hardware, and that its content policy blocks outbound connections.
 - Keep simulated pairing visibly distinct from actual hardware authorization.
+- On every active setup step, confirm **Reset setup simulation** returns to Welcome, clears in-memory setup state, focuses the new heading, and announces that no real Wi-Fi or device changes were made.
 - Test that keyboard focus moves to the new step heading and that progress labels remain readable on mobile.
 
 ## First-boot and network

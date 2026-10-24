@@ -56,6 +56,20 @@ function button(label, action, secondary) {
   }, secondary);
 }
 
+function renderSetupResetControl() {
+  if (state.stage === "welcome") return null;
+  return actionButton(
+    "Reset setup simulation",
+    () => {
+      state = transition(state, { type: "RESET" });
+    },
+    true,
+    () => "Setup simulation reset. No real Wi-Fi or device changes were made.",
+    undefined,
+    () => "page-heading",
+  );
+}
+
 function schedulePairingExpiry() {
   clearTimeout(pairingExpiryTimer);
   pairingExpiryTimer = null;
@@ -199,7 +213,6 @@ function renderStage() {
   card.append(actionButton("Explore device management simulation", () => {
     activeView = "pairing";
   }, true));
-  card.append(button("Run setup again", "RESET", true));
   return card;
 }
 
@@ -273,7 +286,10 @@ function render() {
     return;
   }
   root.append(renderProgress());
-  root.append(renderStage());
+  const stage = renderStage();
+  const resetControl = renderSetupResetControl();
+  if (resetControl) stage.append(resetControl);
+  root.append(stage);
 }
 
 render();

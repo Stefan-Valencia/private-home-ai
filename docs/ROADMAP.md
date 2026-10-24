@@ -19,7 +19,7 @@ Exit evidence: a reviewed project brief and a test plan with clear success measu
 
 Exit evidence: repeatable phone-to-appliance onboarding with reset and recovery instructions.
 
-Current status: the browser-only simulation is implemented. Access-point provisioning, home Wi-Fi recovery, and phone testing remain unverified and require the target Linux appliance.
+Current status: the browser-only simulation is implemented, with an accessible reset control available on every active setup step. Access-point provisioning, home Wi-Fi recovery, and phone testing remain unverified and require the target Linux appliance.
 
 ## Milestone 2: Local identity and trusted-device flow
 - Generate a fresh local appliance identity during initialization.
