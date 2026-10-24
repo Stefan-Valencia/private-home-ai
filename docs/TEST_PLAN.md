@@ -32,10 +32,12 @@ This plan defines evidence to gather; it does not claim any checks have already 
 ## Software-in-loop assistant checks
 - Exercise direct response and one manager-to-specialist document-search flow with deterministic fake models.
 - Confirm specialist results and retrieved excerpts are labeled as untrusted evidence and a prohibited tool handler never runs, including when a deterministic model attempts an unauthorized action after seeing an injected document.
+- Run `python -m home_ai.evaluate --retrieval-only` and record the fixed synthetic set's FTS5 Recall@5 against the proposed 90% gate.
+- When a local model is available, run `python -m home_ai.evaluate` and record route accuracy, citation accuracy, required-term accuracy, abstention accuracy, synthetic-canary non-disclosure, p50/p95 latency, model revision, and serving settings. This command accepts only a validated loopback inference endpoint and does not download weights.
 - Confirm proxy environment variables cannot redirect inference or health requests, redirects are rejected, and API Host/Origin checks reject browser cross-origin requests.
 - Test per-page and cumulative compressed PDF expansion limits, database permissions on POSIX, local-index removal, upload limits, and citation preservation.
 - Send an incomplete upload and confirm its total body-read deadline lets server shutdown finish.
-- Build a wheel and confirm the packaged application includes its HTML, JavaScript, and CSS assets.
+- Build a wheel and confirm the packaged evaluation module and its HTML, JavaScript, and CSS assets are present.
 - Record that fake-model results do not prove real-model answer quality, offline behavior, speed, or target-hardware compatibility.
 
 ## Model and hardware benchmark

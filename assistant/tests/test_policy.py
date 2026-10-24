@@ -35,6 +35,8 @@ class ToolPolicyTests(unittest.TestCase):
                 tool_call_id="3",
             )
             self.assertEqual(_tool_gate(context, unknown_agent).action, "block")
+            self.assertEqual(deps.tool_trace, ["search_local_documents", "delete_device", DELEGATE_TOOL])
+            self.assertEqual(deps.blocked_tool_calls, 2)
         finally:
             deps.documents.close()
 
@@ -107,6 +109,8 @@ class ToolPolicyTests(unittest.TestCase):
             self.assertEqual(_tool_gate(context, first).action, "allow")
             self.assertEqual(_tool_gate(context, second).action, "block")
             self.assertEqual(deps.delegations_used, 1)
+            self.assertEqual(deps.tool_trace, [DELEGATE_TOOL, DELEGATE_TOOL])
+            self.assertEqual(deps.blocked_tool_calls, 1)
         finally:
             deps.documents.close()
 

@@ -45,6 +45,7 @@ jobs:
           with ZipFile(wheel) as package:
               assets = set(package.namelist())
           expected = {
+              "home_ai/evaluate.py",
               "home_ai/web/index.html",
               "home_ai/web/app.js",
               "home_ai/web/styles.css",
