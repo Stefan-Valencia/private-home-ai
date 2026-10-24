@@ -4,7 +4,7 @@ The roadmap is ordered to prove the customer journey cheaply before optimizing t
 
 ## Milestone 0: Product and repository foundation
 - Keep acceptance criteria, open decisions, and threat-model questions in the repository.
-- Select the code and model distribution licenses before inviting outside reuse or contributions.
+- Record the CC0 repository license and track model and dataset terms before distributing those artifacts.
 - Establish reproducible development and documentation conventions.
 
 Exit evidence: a reviewed project brief and a test plan with clear success measures.
