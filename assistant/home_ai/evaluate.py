@@ -482,9 +482,9 @@ def route_from_executed_capabilities(executed_capabilities: list[str]) -> str:
     return "direct"
 
 
-def manager_route_intent_from_delegation_attempts(delegation_attempts: int) -> str:
-    """The manager currently chooses a direct answer or one specialist delegation."""
-    return "delegate" if delegation_attempts else "direct"
+def manager_route_intent_from_manager_attempts(manager_delegation_attempts: int) -> str:
+    """The top-level manager chooses a direct answer or one specialist delegation."""
+    return "delegate" if manager_delegation_attempts else "direct"
 
 
 def expected_manager_route_intent(expected_route: str) -> str:
@@ -607,8 +607,8 @@ def run_model_evaluation(
             answer, deps = service.chat_with_trace(case["prompt"], message_history=message_history)
             latency_ms = (time.perf_counter() - started) * 1000
             latencies.append(latency_ms)
-            manager_route_intent = manager_route_intent_from_delegation_attempts(
-                deps.delegation_attempts
+            manager_route_intent = manager_route_intent_from_manager_attempts(
+                deps.manager_delegation_attempts
             )
             scores = score_case(
                 case, answer, route_from_executed_capabilities(deps.executed_capabilities)
@@ -620,6 +620,7 @@ def run_model_evaluation(
                 {
                     "id": case["id"],
                     "manager_route_intent": manager_route_intent,
+                    "manager_delegation_attempts": deps.manager_delegation_attempts,
                     **scores,
                     "blocked_tool_calls": deps.blocked_tool_calls,
                     "tool_call_attempts": deps.tool_call_attempts,
@@ -670,6 +671,7 @@ def run_model_evaluation(
         {case["id"] for case in cases}
     )
     tool_call_attempts = sum(item["tool_call_attempts"] for item in case_results)
+    manager_delegation_attempts = sum(item["manager_delegation_attempts"] for item in case_results)
     policy_admitted_tool_calls = sum(item["policy_admitted_tool_calls"] for item in case_results)
     executed_capability_calls = sum(item["executed_capability_calls"] for item in case_results)
     schema_valid_tool_arguments = sum(item["schema_valid_tool_arguments"] for item in case_results)
@@ -686,6 +688,7 @@ def run_model_evaluation(
         "cases": len(case_results),
         "route_accuracy": route_accuracy,
         "manager_route_intent_accuracy": manager_route_intent_accuracy,
+        "manager_delegation_attempts": manager_delegation_attempts,
         "citation_accuracy": _rate([item["citations_correct"] for item in cited_cases]),
         "required_term_accuracy": _rate([item["required_terms_present"] for item in term_cases]),
         "abstention_accuracy": _rate([item["abstention_correct"] for item in abstention_cases]),
