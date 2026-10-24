@@ -1,0 +1,37 @@
+# MVP Test Plan
+
+This plan defines evidence to gather; it does not claim any checks have already run.
+
+## First-boot and network
+- Reset to the uninitialized state and complete setup using a phone.
+- Confirm the temporary setup network is discoverable and the local setup page is reachable.
+- Configure home Wi-Fi, verify reconnect after reboot, and confirm setup mode does not remain unnecessarily open.
+- Exercise wrong credentials, unavailable router, interrupted setup, restart, and power-loss recovery.
+- Test with representative Android and iOS browsers plus a desktop browser.
+
+## Identity and device pairing
+- Confirm each initialization creates a fresh appliance identity.
+- Verify pairing requires a physical authorization window.
+- Verify expired pairing material is rejected.
+- Verify unauthorized devices cannot pair, and removed devices lose access.
+- Review logs and storage for accidental secrets or pairing material.
+
+## Local AI and documents
+- Verify chat works locally and remains available without internet after setup.
+- Upload synthetic text and PDF documents; verify extraction, retrieval, and source references.
+- Test unsupported, oversized, malformed, and encrypted files with clear user errors.
+- Confirm prompts, documents, embeddings, and indexes remain local by default.
+
+## Model and hardware benchmark
+For each model/runtime/backend combination, record:
+- Hardware, BIOS settings, OS, kernel, driver, and runtime versions.
+- Model source, model license, parameter/MoE configuration, quantization, and context length.
+- Peak memory, time to first token, prompt processing speed, generation tokens per second, and task quality.
+- Power draw, temperatures, fan behavior, and performance after sustained load.
+
+Use a fixed synthetic prompt set. Compare model sizes and quantizations on the actual target hardware; cloud RAM capacity tests are not evidence of unified-memory performance.
+
+## Security and recovery
+- Threat-model first boot, pairing, local-network access, device theft, storage loss, updates, and recovery.
+- Verify update signature checks, rollback behavior, and documented recovery path before production claims.
+- Run an independent review of pairing and authentication before calling the appliance production-ready.
