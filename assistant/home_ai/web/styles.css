@@ -41,6 +41,7 @@ h1 span { color: #688076; }
 .chat-card, .documents-card { background: var(--paper); border: 1px solid var(--line); border-radius: 15px; box-shadow: 0 8px 26px rgb(28 48 39 / 4%); }
 .chat-card { overflow: hidden; }
 .chat-heading { display: flex; justify-content: space-between; align-items: center; padding: 21px 23px 17px; border-bottom: 1px solid #edf0ee; }
+.chat-actions { display: flex; align-items: center; gap: 10px; }
 h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .chat-heading p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .lock-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: var(--mint); color: var(--green); font-size: 22px; }

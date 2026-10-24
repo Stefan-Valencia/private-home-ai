@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 import json
 import mimetypes
 import socket
@@ -11,6 +12,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 
 from .agent import (
     AssistantDeps,
@@ -28,10 +31,53 @@ from .documents import DocumentError, DocumentStore, MAX_UPLOAD_BYTES
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 MAX_PROMPT_CHARS = 8_000
-MAX_JSON_BYTES = 32 * 1024
+MAX_HISTORY_MESSAGES = 10
+MAX_CONTEXT_CHARS = 12_000
+MAX_JSON_BYTES = 64 * 1024
 RUN_TIMEOUT_SECONDS = 300
 REQUEST_BODY_TIMEOUT_SECONDS = 10
 REQUEST_BODY_CHUNK_BYTES = 64 * 1024
+
+
+def build_chat_message_history(history: object, prompt: str) -> list[ModelMessage]:
+    """Build bounded user/assistant text history; client tool messages are never accepted."""
+    if not isinstance(history, list):
+        raise ValueError("Conversation history must be an array of text messages.")
+    if len(history) > MAX_HISTORY_MESSAGES:
+        raise ValueError("This chat has reached its temporary context limit. Start a new chat to continue.")
+    if len(history) % 2:
+        raise ValueError("Conversation history must contain complete user/assistant turns.")
+
+    prompt_chars = len(prompt.strip())
+    if prompt_chars > MAX_PROMPT_CHARS:
+        raise ValueError(f"Prompts are limited to {MAX_PROMPT_CHARS} characters.")
+    total_chars = prompt_chars
+    messages: list[ModelMessage] = []
+
+    for index, item in enumerate(history):
+        expected_role = "user" if index % 2 == 0 else "assistant"
+        if not isinstance(item, dict) or set(item) != {"role", "content"}:
+            raise ValueError("Conversation history accepts only user and assistant text messages.")
+        role = item["role"]
+        content = item["content"]
+        if role != expected_role:
+            raise ValueError("Conversation history must alternate user and assistant messages.")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("Conversation messages must contain non-empty text.")
+        if len(content) > MAX_PROMPT_CHARS:
+            raise ValueError(f"Conversation messages are limited to {MAX_PROMPT_CHARS} characters.")
+        total_chars += len(content)
+        if total_chars > MAX_CONTEXT_CHARS:
+            raise ValueError(
+                f"Conversation text is limited to {MAX_CONTEXT_CHARS:,} characters. "
+                "Start a new chat or shorten your question."
+            )
+        if role == "user":
+            messages.append(ModelRequest(parts=[UserPromptPart(content=content)]))
+        else:
+            messages.append(ModelResponse(parts=[TextPart(content=content)]))
+
+    return messages
 
 
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -94,10 +140,16 @@ class HomeAIService:
             self.documents.close()
             self._closed = True
 
-    async def _run_agent(self, prompt: str, deps: AssistantDeps) -> str:
+    async def _run_agent(
+        self,
+        prompt: str,
+        deps: AssistantDeps,
+        message_history: Sequence[ModelMessage],
+    ) -> str:
         result = await self.agent.run(
             prompt,
             deps=deps,
+            message_history=message_history,
             usage_limits=manager_usage_limits(),
             timeout=self.run_timeout_seconds,
         )
@@ -112,7 +164,12 @@ class HomeAIService:
         except (OSError, urllib.error.URLError, TimeoutError):
             return False
 
-    def _chat_with_deps(self, prompt: str) -> tuple[str, AssistantDeps]:
+    def _chat_with_deps(
+        self,
+        prompt: str,
+        *,
+        message_history: Sequence[ModelMessage] = (),
+    ) -> tuple[str, AssistantDeps]:
         prompt = prompt.strip()
         if not prompt:
             raise ValueError("Enter a question first.")
@@ -124,7 +181,9 @@ class HomeAIService:
             raise RuntimeError("The local model is busy. Wait for the current answer to finish.")
         deps = AssistantDeps(self.documents, self.policy)
         try:
-            running = asyncio.run_coroutine_threadsafe(self._run_agent(prompt, deps), self._inference_loop)
+            running = asyncio.run_coroutine_threadsafe(
+                self._run_agent(prompt, deps, message_history), self._inference_loop
+            )
             try:
                 return running.result(timeout=self.run_timeout_seconds + 1), deps
             except TimeoutError as exc:
@@ -133,13 +192,17 @@ class HomeAIService:
         finally:
             self._inference_slot.release()
 
-    def chat(self, prompt: str) -> str:
-        answer, _deps = self._chat_with_deps(prompt)
+    def chat(
+        self, prompt: str, *, message_history: Sequence[ModelMessage] = ()
+    ) -> str:
+        answer, _deps = self._chat_with_deps(prompt, message_history=message_history)
         return answer
 
-    def chat_with_trace(self, prompt: str) -> tuple[str, AssistantDeps]:
+    def chat_with_trace(
+        self, prompt: str, *, message_history: Sequence[ModelMessage] = ()
+    ) -> tuple[str, AssistantDeps]:
         """Return an ephemeral tool trace for local evaluation; nothing is persisted."""
-        return self._chat_with_deps(prompt)
+        return self._chat_with_deps(prompt, message_history=message_history)
 
 
 class LocalHTTPServer(ThreadingHTTPServer):
@@ -279,7 +342,16 @@ class HomeAIRequestHandler(BaseHTTPRequestHandler):
                 request = json.loads(body)
                 if not isinstance(request, dict) or not isinstance(request.get("prompt"), str):
                     raise ValueError("Send a JSON object with a prompt string.")
-                answer = self.server.service.chat(request["prompt"])
+                if set(request) - {"prompt", "history"}:
+                    raise ValueError("Chat requests may include only a prompt and plain-text history.")
+                message_history = build_chat_message_history(
+                    request.get("history", []),
+                    request["prompt"],
+                )
+                answer = self.server.service.chat(
+                    request["prompt"],
+                    message_history=message_history,
+                )
                 self._json(200, {"answer": answer})
             except OverflowError as exc:
                 self._json(413, {"error": str(exc)})

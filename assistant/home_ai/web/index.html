@@ -57,16 +57,14 @@
             <div class="chat-heading">
               <div>
                 <h2>Home assistant</h2>
-                <p>One prompt in. The assistant decides whether to use an allowed local capability.</p>
+                <p>One prompt in. It chooses an allowed local capability; follow-ups use temporary text context in this page until New chat or refresh.</p>
               </div>
-              <span class="lock-mark" aria-hidden="true">⌂</span>
-            </div>
-            <div id="messages" class="messages" aria-live="polite" aria-relevant="additions text">
-              <div class="message assistant-message">
-                <span class="message-label">Assistant</span>
-                <p>Hi. Add a text or PDF document, then ask me about it. This prototype uses a local model and synthetic home status only.</p>
+              <div class="chat-actions">
+                <button id="new-chat-button" class="quiet-button" type="button">New chat</button>
+                <span class="lock-mark" aria-hidden="true">⌂</span>
               </div>
             </div>
+            <div id="messages" class="messages" aria-live="polite" aria-relevant="additions text"></div>
             <form id="chat-form" class="composer">
               <label class="sr-only" for="prompt">Your question</label>
               <textarea id="prompt" name="prompt" rows="2" maxlength="8000" placeholder="Ask anything about your documents…" required></textarea>

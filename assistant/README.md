@@ -1,6 +1,6 @@
 # Private Home AI software-in-loop prototype
 
-This prototype demonstrates local browser chat, one-prompt tool selection, read-only specialist delegation, and question answering over local `.txt` and text-based `.pdf` files. Home status is synthetic. It cannot discover or control physical devices.
+This prototype demonstrates local browser chat, one-prompt tool selection, read-only specialist delegation, bounded follow-up questions using temporary page-only context, and question answering over local `.txt` and text-based `.pdf` files. Home status is synthetic. It cannot discover or control physical devices.
 
 ## Start the prototype
 
@@ -54,6 +54,7 @@ The runner uses 20 synthetic documents and 40 fixed requests. It reports per-cas
 
 ## Privacy and limits
 
+- The browser keeps up to five prior user/assistant text turns in page memory for follow-up questions. The **New chat** button and page refresh clear this history; it is not written to browser storage, the server session, or the document index.
 - Prompts and retrieved passages go only to an IP loopback model endpoint. HTTP proxy environment variables are ignored, health checks do not follow redirects, and remote inference endpoints are rejected.
 - The browser API accepts only its exact local host and same-origin requests. Do not expose either service to the home network; trusted-device authentication and network access are later milestones.
 - Documents are indexed in a local SQLite database under the operating system's per-user data folder by default. On POSIX systems, the app restricts the data folder to owner-only access and the database to owner read/write. On Windows, the data folder inherits its Windows account permissions.
