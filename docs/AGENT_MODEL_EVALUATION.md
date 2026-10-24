@@ -1,6 +1,6 @@
 # Home AI agent and model evaluation plan
 
-**Status:** Proposed software plan. Runtime and default model remain open until measured on the target appliance.
+**Status:** Research snapshot 2026-10-24. Runtime and default model remain open until measured on the target appliance. All model and runtime claims below are upstream documentation, not project measurements.
 
 ## Product behavior
 
@@ -19,7 +19,7 @@ This gives the user a single prompt while keeping permissions in application cod
 
 ## Harness recommendation
 
-Prototype **Pydantic AI** as the general-purpose orchestrator. Its subagent capability exposes a named `delegate_task(agent_name, task)` tool, forwards dependencies and usage limits, and gives each delegate an isolated run history. That fits the product goal of letting the assistant decide when delegation helps without exposing setup choices to the user. [Pydantic AI multi-agent guide](https://pydantic.dev/docs/ai/guides/multi-agent-applications/)
+Prototype **Pydantic AI** as the general-purpose orchestrator. Its `SubAgents` capability exposes one named delegation tool and can share dependencies, usage limits, and guardrails across child agents. That fits the product goal of letting the assistant decide when delegation helps without exposing setup choices to the user. The current prototype pins `pydantic-ai-harness==0.60.0`; upstream labels Harness 0.x APIs as subject to minor-version changes, so keep it pinned and compare it with Qwen-Agent on the same synthetic evaluation before calling it the best harness. [Pydantic AI multi-agent guide](https://pydantic.dev/docs/ai/guides/multi-agent-applications/), [Harness subagent docs](https://pydantic.dev/docs/ai/harness/subagents/)
 
 Keep the first graph small: one manager, a local knowledge agent, and a simulated home-information agent. The manager can answer directly when delegation adds no value. Add a bounded task limit and a per-request tool-call limit to prevent loops.
 
@@ -29,13 +29,14 @@ Keep **LangGraph** as a later option if the product needs durable, resumable wor
 
 ## Model and inference candidates
 
-Start with a deterministic fake provider for repeatable offline development. Add a local model behind an OpenAI-compatible API so the agent code does not depend on one inference engine. `llama.cpp` provides CPU and GPU inference, chat and embeddings endpoints, and tool-calling support; use it as the laptop software-in-loop candidate, not as proof of AMD target performance. [llama.cpp server guide](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+Start with a deterministic fake provider for repeatable offline development. Keep local inference behind an OpenAI-compatible API so the agent code does not depend on one engine. `llama.cpp` exposes chat, responses, and embeddings endpoints and can be built with ROCm or Vulkan; use it for the local software-in-loop path. Compare `vLLM` with ROCm as a second target backend: current upstream guidance lists Ryzen AI MAX / gfx1151 support and requires ROCm 7.0.2 or later, while AMD's ROCm 7.2.1 matrix lists the Ryzen AI Max+ 395. These are compatibility claims, not tests from this project; check the exact Linux, kernel, firmware, and build on the appliance. [llama.cpp server guide](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md), [llama.cpp backend images](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md), [vLLM ROCm requirements](https://github.com/vllm-project/vllm/blob/main/docs/getting_started/installation/gpu.rocm.inc.md), [AMD Linux support matrix](https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/compatibility/compatibilityryz/native_linux/native_linux_compatibility.html)
 
 Evaluate these open-weight candidates:
 
-1. **Qwen3.6-35B-A3B** — the first model to try for the target class. Its card lists 35B total and 3B active parameters, Apache-2.0, tool-use serving guidance, and a native 262K context. The card recommends Qwen-Agent and advises at least 128K context for complex tasks; treat that context guidance as a test variable, not a fit guarantee for this appliance. These are model-card facts and vendor recommendations, not independent quality or speed results. [Model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)
-2. **OpenAI gpt-oss-20b** — a smaller local comparison for latency and resource use. Its card lists 21B total and 3.6B active parameters and says the native MXFP4 version can run within 16GB; verify actual memory and latency with the selected runtime and context. [Model card](https://huggingface.co/openai/gpt-oss-20b)
-3. **OpenAI gpt-oss-120b** — a higher-capacity stress comparison. Its card lists 117B total and 5.1B active parameters, Apache-2.0, and native function-calling capability. The card's single 80GB GPU statement does not establish that it will fit or perform acceptably in an integrated-memory appliance. Both gpt-oss models require the Harmony response format; verify the serving adapter preserves it. [Model card](https://huggingface.co/openai/gpt-oss-120b)
+1. **Qwen3.6-35B-A3B** — a first target-class candidate. Its card lists 35B total and 3B active parameters, Apache-2.0, native 262K context, and agentic tool-calling guidance. Qwen recommends Qwen-Agent for that model family; that makes it a strong pair to compare, not a foregone winner. [Model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)
+2. **Gemma 4 26B A4B IT** — a second MoE candidate with 25.2B total and 3.8B active parameters, Apache-2.0, 256K context, and native function calling. Its multimodal abilities may help future document workflows, but the MVP currently handles text PDFs only. [Model card](https://huggingface.co/google/gemma-4-26B-A4B-it)
+3. **OpenAI gpt-oss-20b** — a smaller local candidate for latency and resource comparison. Its card lists 21B total and 3.6B active parameters and says its native MXFP4 version can run within 16GB; verify actual memory and latency with the selected runtime and context. [Model card](https://huggingface.co/openai/gpt-oss-20b)
+4. **OpenAI gpt-oss-120b** — a high-capacity stress candidate. Its card lists 117B total and 5.1B active parameters, Apache-2.0, and native function-calling capability. The card's single 80GB GPU statement does not establish acceptable performance or available memory in an integrated-memory appliance. Both gpt-oss models require Harmony formatting; verify each serving adapter preserves the template and tool calls. [Model card](https://huggingface.co/openai/gpt-oss-120b)
 
 Model size alone is not a selection criterion. Quantization, context size, runtime support, prompt format, tool-call reliability, answer quality, memory use, and sustained speed all need measurement. Review the license of the actual quantized artifact and its conversion separately before redistribution.
 
@@ -78,3 +79,4 @@ The AI software slice is estimated at **4–7 engineering days** after the onboa
 Expected result: a local chat demo that accepts one user prompt, decides whether to answer or use a permitted local capability, can delegate when helpful, answers synthetic document questions with citations, and abstains when evidence is missing. This does not include actual home-device control or target-hardware performance claims.
 
 Target-appliance setup, AMD runtime comparison, memory/speed/thermal measurements, and radio/phone tests remain separate work after the hardware is available.
+

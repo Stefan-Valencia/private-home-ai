@@ -32,10 +32,12 @@ Exit evidence: authorized and unauthorized pairing cases are documented and test
 ## Milestone 3: Local AI and document question answering
 - Build the browser chat interface and local inference service.
 - Evaluate at least two viable AMD-compatible runtimes or backends.
-- Add local document extraction, indexing, retrieval, and citations to source passages.
+- Add local document extraction, indexing, retrieval, and citations to source passages. Start with bounded lexical search; choose a local embedding model after runtime/hardware evaluation.
 - Use synthetic documents for automated and cloud tests.
 
 Exit evidence: an end-to-end local chat and document Q&A demo that works without internet access after setup.
+
+Current status: the software-in-loop implementation is in `assistant/`. Deterministic tests exercise direct answering, manager-to-specialist document search, citations, upload/removal, local-origin protections, and bounded PDF expansion. It has not yet been run with real model weights, so offline model quality and latency are unverified. The index uses lexical FTS5 search; semantic embeddings, comparison with a second AMD-compatible runtime, and target-hardware measurements remain unfinished.
 
 ## Milestone 4: Target appliance validation
 - Install the chosen Linux version on the selected EVO-X3 unit.
@@ -55,4 +57,3 @@ Exit evidence: an alpha release with recovery instructions, known limitations, a
 
 ## Later work
 Evaluate remote access, multi-user support, fleet management, and manufacturing only after the local-network MVP succeeds.
-
