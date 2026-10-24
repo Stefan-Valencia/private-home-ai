@@ -53,3 +53,10 @@ Use a fixed synthetic prompt set. Compare model sizes and quantizations on the a
 - Threat-model first boot, pairing, local-network access, device theft, storage loss, updates, and recovery.
 - Verify update signature checks, rollback behavior, and documented recovery path before production claims.
 - Run an independent review of pairing and authentication before calling the appliance production-ready.
+
+## Software-only pairing lifecycle simulation
+- Use conspicuously synthetic device names and identifiers; create no keys, credentials, network access, or persisted trust records.
+- Exercise simulated authorization-window start, expiry, one-use enrollment, list, revoke, reset, and invalid transitions.
+- Keep a visible “Simulation only” label in every state, especially active authorization, enrolled, expired, revoked, reset, error, and retry states; do not use “trusted” or “authenticated” for simulated devices.
+- Check that keyboard focus and screen-reader announcements make authorization-window start, enrollment, expiry, revocation, reset, invalid transitions, error states, and retry states clear.
+- Keep the simulation results separate from the physical-button, cryptographic protocol, network interception, credential storage, and recovery evidence above.
