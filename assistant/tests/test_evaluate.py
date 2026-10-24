@@ -1,4 +1,10 @@
+import io
+import json
+import tempfile
 import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
+from unittest.mock import patch
 
 from pydantic_ai import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -7,12 +13,17 @@ from pydantic_ai.models.test import TestModel
 from home_ai.agent import DELEGATE_TOOL, HOME_TOOL, SEARCH_TOOL
 from home_ai.config import Settings
 from home_ai.evaluate import (
+    MAX_RUN_METADATA_BYTES,
     build_synthetic_dataset,
+    dataset_sha256,
     evaluate_quality_gates,
     evaluate_retrieval_baseline,
+    load_run_metadata,
+    main,
     route_from_tool_trace,
     run_model_evaluation,
     score_case,
+    validate_run_metadata,
 )
 
 
@@ -29,6 +40,77 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(report["cases_with_expected_documents"], 28)
         self.assertGreaterEqual(report["recall_at_5"], report["gate"])
         self.assertTrue(report["passed"])
+
+    def test_dataset_digest_is_stable_and_changes_with_dataset_content(self) -> None:
+        dataset = build_synthetic_dataset()
+        original = dataset_sha256(dataset)
+        self.assertEqual(original, dataset_sha256(build_synthetic_dataset()))
+        dataset["documents"][0]["content"] += " Synthetic revision."
+        self.assertNotEqual(original, dataset_sha256(dataset))
+
+    def test_run_metadata_is_allowlisted_bounded_and_rejects_sensitive_values(self) -> None:
+        supplied = {
+            "schema_version": 1,
+            "model": {"revision": "4f23d8a", "quantization": "Q4_K_M", "context_tokens": 8192},
+            "runtime": {"name": "llama.cpp", "version": "b5000", "build": "Vulkan", "flags": ["--ctx-size", "--n-gpu-layers"]},
+            "hardware": {"name": "AMD Ryzen AI Max+ 395", "os": "Ubuntu 24.04", "kernel": "6.11", "driver": "ROCm 7.2"},
+            "sampling": {"temperature": 0.2, "top_p": 0.9, "seed": 42},
+        }
+        validated = validate_run_metadata(supplied)
+        for group in ("model", "runtime", "hardware", "sampling"):
+            self.assertEqual(validated[group], supplied[group])
+
+        jwt_like = "eyJ" + ("A" * 12) + "." + ("B" * 12) + "." + ("C" * 12)
+        stripe_like = "sk_live_" + ("A" * 24)
+        invalid_values = [
+            {"schema_version": 1, "endpoint": "http://127.0.0.1:8080"},
+            {"schema_version": 1, "runtime": {"name": "https://example.invalid"}},
+            {"schema_version": 1, "runtime": {"name": "file:///etc/passwd"}},
+            {"schema_version": 1, "hardware": {"name": "/root/.cache/model.gguf"}},
+            {"schema_version": 1, "runtime": {"name": "localhost:8080"}},
+            {"schema_version": 1, "runtime": {"build": "api_key=synthetic-secret"}},
+            {"schema_version": 1, "runtime": {"build": stripe_like}},
+            {"schema_version": 1, "runtime": {"flags": [r"--model=C:\private\model.gguf"]}},
+            {"schema_version": 1, "hardware": {"name": r"C:\private\system"}},
+            {"schema_version": 1, "hardware": {"name": "hf_abcdefghijklmnopqrstuvwxyz123456"}},
+            {"schema_version": 1, "runtime": {"build": jwt_like}},
+        ]
+        for value in invalid_values:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                validate_run_metadata(value)
+
+    def test_cli_emits_valid_json_with_metadata_and_dataset_digest(self) -> None:
+        metadata = {
+            "schema_version": 1,
+            "model": {"revision": "4f23d8a"},
+            "runtime": {"name": "llama.cpp"},
+            "hardware": {"name": "Development laptop"},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            metadata_path = Path(temporary) / "run-metadata.json"
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            self.assertEqual(load_run_metadata(metadata_path)["model"]["revision"], "4f23d8a")
+            invalid_path = Path(temporary) / "invalid-metadata.json"
+            invalid_path.write_text("{", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "valid UTF-8 JSON"):
+                load_run_metadata(invalid_path)
+            oversized_path = Path(temporary) / "oversized-metadata.json"
+            oversized_path.write_bytes(b" " * (MAX_RUN_METADATA_BYTES + 1))
+            with self.assertRaisesRegex(ValueError, "16 KiB limit"):
+                load_run_metadata(oversized_path)
+            output = io.StringIO()
+            with patch("sys.argv", ["home_ai.evaluate", "--retrieval-only", "--metadata-file", str(metadata_path)]):
+                with redirect_stdout(output):
+                    main()
+
+        report = json.loads(output.getvalue())
+        self.assertEqual(report["mode"], "retrieval-only")
+        self.assertEqual(report["report_schema_version"], 1)
+        self.assertEqual(report["run_metadata"]["model"]["revision"], "4f23d8a")
+        self.assertEqual(report["dataset_sha256"], dataset_sha256(build_synthetic_dataset()))
+        self.assertIn("cases_with_expected_documents", report)
+        self.assertIn("recall_at_5", report)
+        self.assertIn("passed", report)
 
     def test_overall_quality_gate_requires_answer_terms_and_complete_metrics(self) -> None:
         metrics = {
