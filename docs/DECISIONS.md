@@ -28,3 +28,9 @@ Benchmark AMD-compatible runtimes and backends on the exact system. Do not choos
 Status: CC0 1.0 Universal is present in LICENSE.
 
 Code, model weights, datasets, and other artifacts can have different license terms. Review each separately before bundling or redistributing it.
+
+### Onboarding simulation boundary
+Status: accepted for the first Milestone 1 implementation slice (2026-10-24).
+
+The first setup experience is a browser-only simulation with synthetic values. It does not access networking hardware, accept Wi-Fi credentials, generate keys, or authorize a real device. This lets the customer journey and state transitions be reviewed without presenting simulated behavior as appliance control. Revisit the boundary when the target Linux device is available for physical setup and recovery tests.
+

@@ -18,9 +18,11 @@ Build a local-first home AI appliance that is approachable for non-technical use
 - Generate appliance identity during customer setup. A new trusted device must require a physical authorization action.
 - Use established, reviewed cryptographic and networking components. Do not invent a custom cryptographic protocol.
 - Treat security properties as design goals until tested and independently reviewed. Do not call the appliance unhackable or production-ready.
-- The repository uses CC0 1.0 Universal (see LICENSE). Review the license of every code dependency, model artifact, and dataset separately.
+- The repository includes CC0 1.0 Universal in LICENSE. Review the license of every code dependency, model artifact, and dataset separately.
+- Keep prototype behavior and security properties clearly labeled; never make a simulated action appear to control hardware.
 
 ## Hardware and evidence
 - Distinguish laptop simulation, cloud capacity experiments, and tests on the target appliance.
 - For hardware results, record the exact device, operating system, kernel/runtime versions, model and quantization, context length, test method, and measurements.
 - Do not treat model size or memory fit as proof of acceptable response speed or answer quality.
+

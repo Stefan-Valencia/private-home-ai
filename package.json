@@ -1,0 +1,10 @@
+{
+  "name": "private-home-ai-onboarding-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
+

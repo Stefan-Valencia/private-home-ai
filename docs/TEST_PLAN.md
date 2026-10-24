@@ -2,6 +2,13 @@
 
 This plan defines evidence to gather; it does not claim any checks have already run.
 
+## Development-only onboarding simulation
+- Verify the state machine follows welcome, temporary setup network, demo identity, simulated physical pairing, test-network selection, connection success/failure, retry, ready, and reset states.
+- Verify invalid transitions fail at every stage and reset returns to the initial state, including from partial setup.
+- Confirm the simulation does not ask for passwords or access Wi-Fi hardware, and that its content policy blocks outbound connections.
+- Keep simulated pairing visibly distinct from actual hardware authorization.
+- Test that keyboard focus moves to the new step heading and that progress labels remain readable on mobile.
+
 ## First-boot and network
 - Reset to the uninitialized state and complete setup using a phone.
 - Confirm the temporary setup network is discoverable and the local setup page is reachable.
@@ -35,3 +42,4 @@ Use a fixed synthetic prompt set. Compare model sizes and quantizations on the a
 - Threat-model first boot, pairing, local-network access, device theft, storage loss, updates, and recovery.
 - Verify update signature checks, rollback behavior, and documented recovery path before production claims.
 - Run an independent review of pairing and authentication before calling the appliance production-ready.
+

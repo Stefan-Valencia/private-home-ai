@@ -63,3 +63,4 @@ Compare several model sizes and quantizations on the target system. Measure mode
 - Storage encryption and recovery experience.
 - Update mechanism, signing keys, and rollback design.
 - Model-artifact and dataset distribution terms.
+
