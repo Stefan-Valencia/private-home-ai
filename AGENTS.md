@@ -15,7 +15,7 @@ Build a local-first home AI appliance that is approachable for non-technical use
 
 ## Product and privacy constraints
 - Local processing and local-network access are the MVP default. Do not add mandatory cloud accounts, cloud inference, telemetry, or external data transfer without documenting the reason and getting approval.
-- Never commit credentials, private documents, home-network details, or real user data. Use synthetic documents for development and cloud testing.
+- Never commit credentials, private documents, home-network details, or real user data. Use synthetic documents for development; any cloud testing is optional and must use synthetic data, with explicit approval before spending.
 - Generate appliance identity during customer setup. A new trusted device must require a physical authorization action.
 - Use established, reviewed cryptographic and networking components. Do not invent a custom cryptographic protocol.
 - Treat security properties as design goals until tested and independently reviewed. Do not call the appliance unhackable or production-ready.
