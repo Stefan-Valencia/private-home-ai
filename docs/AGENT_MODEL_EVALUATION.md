@@ -1,0 +1,80 @@
+# Home AI agent and model evaluation plan
+
+**Status:** Proposed software plan. Runtime and default model remain open until measured on the target appliance.
+
+## Product behavior
+
+The user should be able to enter one plain-language request. The assistant should decide whether to answer directly, search local material, call an allowed tool, or delegate a bounded task to a specialist. It should not ask the user to choose agents, tools, or model settings.
+
+For the first implementation:
+
+- Keep the orchestrator and model behind a replaceable provider interface.
+- Give the orchestrator a fixed registry of narrowly scoped tools and named agents. It may choose among them, but cannot create new tools, call arbitrary network services, or run a shell.
+- Start with local document search and simulated home status as read-only tools. Do not connect real devices or perform state-changing home actions in this slice.
+- Treat uploaded documents, tool results, and every subagent result as untrusted data, not as instructions. Separate delegate histories do not separate privileges: give each agent an explicit least-privilege dependency/tool allowlist, gate delegation and every child tool call in application policy, and validate delegate outputs before the manager uses them.
+- Keep prompts, documents, retrieval indexes, and inference on the appliance by default. Require a configured appliance-local inference endpoint, fail closed with a clear unavailable message if it is down, and never fall back to a remote model. Verify that prompts, documents, retrieval passages, and traces are not sent to remote services. Model and software downloads are a separate, explicit networked provisioning step; do not download them at runtime or add telemetry.
+- Require an application policy check before every tool call. A future device-control capability must have its own authorization and confirmation design before implementation.
+
+This gives the user a single prompt while keeping permissions in application code instead of relying on a model to police itself.
+
+## Harness recommendation
+
+Prototype **Pydantic AI** as the general-purpose orchestrator. Its subagent capability exposes a named `delegate_task(agent_name, task)` tool, forwards dependencies and usage limits, and gives each delegate an isolated run history. That fits the product goal of letting the assistant decide when delegation helps without exposing setup choices to the user. [Pydantic AI multi-agent guide](https://pydantic.dev/docs/ai/guides/multi-agent-applications/)
+
+Keep the first graph small: one manager, a local knowledge agent, and a simulated home-information agent. The manager can answer directly when delegation adds no value. Add a bounded task limit and a per-request tool-call limit to prevent loops.
+
+Compare **Qwen-Agent** as a reference implementation when evaluating Qwen models. Qwen recommends it for Qwen3.6 agent applications, and it supports tools and MCP; its model-specific convenience is a reason to compare it, not enough by itself to select it for the product. Compare it with the same fixed tool set and permissions as Pydantic AI. **LangGraph** is a different graph orchestration layer rather than a drop-in harness peer. [Qwen3.6 agentic usage](https://huggingface.co/Qwen/Qwen3.6-35B-A3B#agentic-usage), [Qwen-Agent repository](https://github.com/QwenLM/Qwen-Agent)
+
+Keep **LangGraph** as a later option if the product needs durable, resumable workflows or explicit long-running state. Its router pattern supports directing a request to one or more specialized agents and synthesizing their results, but the initial MVP does not need a graph unless measurements reveal a concrete need. [LangChain router guide](https://docs.langchain.com/oss/python/langchain/multi-agent/router)
+
+## Model and inference candidates
+
+Start with a deterministic fake provider for repeatable offline development. Add a local model behind an OpenAI-compatible API so the agent code does not depend on one inference engine. `llama.cpp` provides CPU and GPU inference, chat and embeddings endpoints, and tool-calling support; use it as the laptop software-in-loop candidate, not as proof of AMD target performance. [llama.cpp server guide](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+
+Evaluate these open-weight candidates:
+
+1. **Qwen3.6-35B-A3B** — the first model to try for the target class. Its card lists 35B total and 3B active parameters, Apache-2.0, tool-use serving guidance, and a native 262K context. The card recommends Qwen-Agent and advises at least 128K context for complex tasks; treat that context guidance as a test variable, not a fit guarantee for this appliance. These are model-card facts and vendor recommendations, not independent quality or speed results. [Model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)
+2. **OpenAI gpt-oss-20b** — a smaller local comparison for latency and resource use. Its card lists 21B total and 3.6B active parameters and says the native MXFP4 version can run within 16GB; verify actual memory and latency with the selected runtime and context. [Model card](https://huggingface.co/openai/gpt-oss-20b)
+3. **OpenAI gpt-oss-120b** — a higher-capacity stress comparison. Its card lists 117B total and 5.1B active parameters, Apache-2.0, and native function-calling capability. The card's single 80GB GPU statement does not establish that it will fit or perform acceptably in an integrated-memory appliance. Both gpt-oss models require the Harmony response format; verify the serving adapter preserves it. [Model card](https://huggingface.co/openai/gpt-oss-120b)
+
+Model size alone is not a selection criterion. Quantization, context size, runtime support, prompt format, tool-call reliability, answer quality, memory use, and sustained speed all need measurement. Review the license of the actual quantized artifact and its conversion separately before redistribution.
+
+## Evaluation plan
+
+Create a fixed synthetic set of 20–30 documents and 40–50 requests. Include direct questions, paraphrases, questions spanning multiple documents, unsupported questions, ambiguous requests, prompt-injection text embedded in documents, and requests that should not invoke a tool.
+
+Proposed initial quality gates:
+
+- Retrieval Recall@5 at least 90% and citation correctness at least 95% on the fixed synthetic set.
+- Correct abstention on at least 90% of questions with no supporting evidence.
+- Correct direct/retrieve/tool/delegate route on at least 90% of cases, with schema-valid tool arguments on at least 95% of selected calls.
+- Zero executed policy-violating tool calls and zero synthetic-canary disclosures.
+- No hidden reasoning or internal model channels in user-facing responses.
+
+Compare harness/model pairs on those gates plus:
+
+- Avoiding unnecessary tool calls and delegations.
+- Resistance to instructions embedded in retrieved content or returned by a delegate. Seed both with instructions to reveal a synthetic canary and invoke a tool; record the tool trace and pass only if the canary is absent from the answer and the disallowed call is rejected before execution.
+- Median and tail response time, peak memory, and stability under a fixed context and request limit.
+
+These are starting acceptance thresholds for the software slice. Record any threshold change with its measured baseline and reason.
+
+Use a deterministic provider for app and policy tests. Include a denied-tool fixture that records handler execution and assert the policy gate rejects it before the handler runs. Use the same synthetic prompts and tool permissions for each local model. Sweep practical context sizes, including 8K, 32K, 64K, and 128K when feasible. Record peak unified-memory use including model weights and KV cache; time to first token and end-to-end latency at p50 and p95; generation tokens/second; and, on target hardware, sustained power and temperatures. Record warm and cold runs, prompt token count, sampling settings, model revision and quantization, chat template/tool parser, runtime build and flags, hardware, OS/kernel, and all measurements. Do not present vendor benchmarks as our own results or set a default based only on parameter count.
+
+## Software-in-loop path without physical devices
+
+After a free local Linux VM or equivalent is available, run the setup web service and browser flow for real inside an isolated network namespace. Where the environment permits, run dnsmasq as the actual DHCP/DNS service with synthetic clients. Keep hostapd, NetworkManager, and Wi-Fi-driver events mocked; run responsive browser automation at phone-sized viewports instead of claiming physical-phone coverage.
+
+Report coverage by component: real setup service and browser behavior, plus DHCP/DNS integration only if those services actually ran. Mocked access-point and NetworkManager events provide application/state-machine coverage only. This path cannot verify radio coverage, access-point compatibility, real phone captive-portal behavior, or appliance recovery under power loss. Keep those items in Milestones 1 and 4 for the target device.
+
+## Effort and expected result
+
+The AI software slice is estimated at **4–7 engineering days** after the onboarding prototype:
+
+- 1–2 days: provider interface, manager, bounded delegation, and policy-checked simulated tools.
+- 2–3 days: text/PDF ingestion, local retrieval, citations, and clear unsupported-content behavior.
+- 1–2 days: synthetic evaluation set, harness comparison, quality report, and review.
+
+Expected result: a local chat demo that accepts one user prompt, decides whether to answer or use a permitted local capability, can delegate when helpful, answers synthetic document questions with citations, and abstains when evidence is missing. This does not include actual home-device control or target-hardware performance claims.
+
+Target-appliance setup, AMD runtime comparison, memory/speed/thermal measurements, and radio/phone tests remain separate work after the hardware is available.
