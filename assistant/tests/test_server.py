@@ -1,3 +1,4 @@
+import asyncio
 import json
 import socket
 import tempfile
@@ -153,6 +154,72 @@ class LocalModelHistoryTests(unittest.TestCase):
         self.assertIn("The sample color is amber.", user_text)
         self.assertIn("I will remember amber.", assistant_text)
         self.assertIn("What color did I mention?", user_text)
+
+
+class InferenceCancellationTests(unittest.TestCase):
+    def test_timeout_keeps_the_inference_slot_until_cancellation_finishes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            service = HomeAIService(
+                Settings(data_dir=Path(temporary) / "data"),
+                model=TestModel(call_tools=[], custom_output_text="Synthetic answer."),
+                run_timeout_seconds=1,
+            )
+            run_started = threading.Event()
+            cancellation_seen = threading.Event()
+            finish_cancellation = asyncio.Event()
+            cancellation_finished = threading.Event()
+            calls = 0
+
+            async def delayed_run(_prompt, _deps, _message_history):
+                nonlocal calls
+                calls += 1
+                if calls == 1:
+                    run_started.set()
+                    try:
+                        await asyncio.Future()
+                    except asyncio.CancelledError:
+                        cancellation_seen.set()
+                        await finish_cancellation.wait()
+                        raise
+                    finally:
+                        cancellation_finished.set()
+                return f"synthetic answer {calls}"
+
+            service._run_agent = delayed_run
+            first_errors: list[BaseException] = []
+
+            def run_first_request() -> None:
+                try:
+                    service.chat("first request")
+                except BaseException as exc:
+                    first_errors.append(exc)
+
+            first = threading.Thread(target=run_first_request)
+            first.start()
+            try:
+                self.assertTrue(run_started.wait(timeout=1))
+                first.join(timeout=4)
+                self.assertFalse(first.is_alive())
+                self.assertEqual(len(first_errors), 1)
+                self.assertIsInstance(first_errors[0], AssistantUserError)
+                self.assertIn("took too long", str(first_errors[0]))
+                self.assertTrue(cancellation_seen.wait(timeout=1))
+
+                with self.assertRaisesRegex(AssistantUserError, "busy"):
+                    service.chat("request while cancellation is cleaning up")
+                self.assertEqual(calls, 1)
+
+                service._inference_loop.call_soon_threadsafe(finish_cancellation.set)
+                self.assertTrue(cancellation_finished.wait(timeout=1))
+                self.assertTrue(service._inference_slot.acquire(timeout=1))
+                service._inference_slot.release()
+                self.assertEqual(service.chat("after cancellation cleanup"), "synthetic answer 2")
+                self.assertEqual(calls, 2)
+            finally:
+                service._inference_loop.call_soon_threadsafe(finish_cancellation.set)
+                first.join(timeout=2)
+                cancellation_finished.wait(timeout=1)
+                service.close()
 
 
 class LocalAPITests(unittest.TestCase):
