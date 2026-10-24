@@ -281,6 +281,20 @@ class LocalAPITests(unittest.TestCase):
         )
         self.assertNotIn(canary.encode(), payload)
 
+        self.service.chat.side_effect = ValueError("backend diagnostic " + canary)
+        status, payload = self.request(
+            "POST",
+            "/api/chat",
+            body=json.dumps({"prompt": "Hello"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": self.server.origin},
+        )
+        self.assertEqual(status, 500)
+        self.assertEqual(
+            json.loads(payload)["error"],
+            "The local assistant could not complete that request.",
+        )
+        self.assertNotIn(canary.encode(), payload)
+
         safe_message = "The local assistant took too long to respond. Try again."
         self.service.chat.side_effect = AssistantUserError(safe_message)
         status, payload = self.request(

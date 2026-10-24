@@ -366,19 +366,24 @@ class HomeAIRequestHandler(BaseHTTPRequestHandler):
                     request.get("history", []),
                     request["prompt"],
                 )
+            except OverflowError as exc:
+                self._json(413, {"error": str(exc)})
+                return
+            except json.JSONDecodeError:
+                self._json(400, {"error": "The request was not valid JSON."})
+                return
+            except ValueError as exc:
+                self._json(400, {"error": str(exc)})
+                return
+
+            try:
                 answer = self.server.service.chat(
                     request["prompt"],
                     message_history=message_history,
                 )
                 self._json(200, {"answer": answer})
-            except OverflowError as exc:
-                self._json(413, {"error": str(exc)})
             except AssistantUserError as exc:
                 self._json(503, {"error": str(exc)})
-            except json.JSONDecodeError:
-                self._json(400, {"error": "The request was not valid JSON."})
-            except ValueError as exc:
-                self._json(400, {"error": str(exc)})
             except Exception:
                 self._json(500, {"error": "The local assistant could not complete that request."})
             return
