@@ -24,6 +24,7 @@ from pydantic_ai.messages import (
 
 from .agent import (
     AssistantDeps,
+    AssistantUserError,
     ModelUnavailable,
     ToolPolicy,
     build_assistant,
@@ -169,7 +170,7 @@ class HomeAIService:
                 timeout=self.run_timeout_seconds,
             )
         except UsageLimitExceeded as exc:
-            raise RuntimeError(_usage_limit_message(exc)) from exc
+            raise AssistantUserError(_usage_limit_message(exc)) from exc
         return sanitize_user_output(result.output)
 
     def inference_ready(self) -> bool:
@@ -195,7 +196,7 @@ class HomeAIService:
         if not self.is_fake_model and not self.inference_ready():
             raise ModelUnavailable("The local model is not running. Start it on this computer and try again.")
         if not self._inference_slot.acquire(blocking=False):
-            raise RuntimeError("The local model is busy. Wait for the current answer to finish.")
+            raise AssistantUserError("The local model is busy. Wait for the current answer to finish.")
         deps = AssistantDeps(self.documents, self.policy)
         try:
             running = asyncio.run_coroutine_threadsafe(
@@ -205,7 +206,7 @@ class HomeAIService:
                 return running.result(timeout=self.run_timeout_seconds + 1), deps
             except TimeoutError as exc:
                 running.cancel()
-                raise RuntimeError("The local assistant took too long to respond. Try again.") from exc
+                raise AssistantUserError("The local assistant took too long to respond. Try again.") from exc
         finally:
             self._inference_slot.release()
 
@@ -365,19 +366,24 @@ class HomeAIRequestHandler(BaseHTTPRequestHandler):
                     request.get("history", []),
                     request["prompt"],
                 )
+            except OverflowError as exc:
+                self._json(413, {"error": str(exc)})
+                return
+            except json.JSONDecodeError:
+                self._json(400, {"error": "The request was not valid JSON."})
+                return
+            except ValueError as exc:
+                self._json(400, {"error": str(exc)})
+                return
+
+            try:
                 answer = self.server.service.chat(
                     request["prompt"],
                     message_history=message_history,
                 )
                 self._json(200, {"answer": answer})
-            except OverflowError as exc:
-                self._json(413, {"error": str(exc)})
-            except ModelUnavailable as exc:
+            except AssistantUserError as exc:
                 self._json(503, {"error": str(exc)})
-            except json.JSONDecodeError:
-                self._json(400, {"error": "The request was not valid JSON."})
-            except (ValueError, RuntimeError) as exc:
-                self._json(400 if isinstance(exc, ValueError) else 503, {"error": str(exc)})
             except Exception:
                 self._json(500, {"error": "The local assistant could not complete that request."})
             return

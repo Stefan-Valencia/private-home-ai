@@ -13,6 +13,7 @@ from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, Text
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
+from home_ai.agent import AssistantUserError
 from home_ai.config import Settings
 from home_ai.server import (
     MAX_CONTEXT_CHARS,
@@ -263,6 +264,47 @@ class LocalAPITests(unittest.TestCase):
         )
         self.assertEqual(status, 400)
         self.assertEqual(self.service.chat.call_count, 2)
+
+    def test_chat_errors_hide_unexpected_backend_details(self) -> None:
+        canary = "SYNTHETIC-BACKEND-CANARY-7M4Q"
+        self.service.chat.side_effect = RuntimeError("backend diagnostic " + canary)
+        status, payload = self.request(
+            "POST",
+            "/api/chat",
+            body=json.dumps({"prompt": "Hello"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": self.server.origin},
+        )
+        self.assertEqual(status, 500)
+        self.assertEqual(
+            json.loads(payload)["error"],
+            "The local assistant could not complete that request.",
+        )
+        self.assertNotIn(canary.encode(), payload)
+
+        self.service.chat.side_effect = ValueError("backend diagnostic " + canary)
+        status, payload = self.request(
+            "POST",
+            "/api/chat",
+            body=json.dumps({"prompt": "Hello"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": self.server.origin},
+        )
+        self.assertEqual(status, 500)
+        self.assertEqual(
+            json.loads(payload)["error"],
+            "The local assistant could not complete that request.",
+        )
+        self.assertNotIn(canary.encode(), payload)
+
+        safe_message = "The local assistant took too long to respond. Try again."
+        self.service.chat.side_effect = AssistantUserError(safe_message)
+        status, payload = self.request(
+            "POST",
+            "/api/chat",
+            body=json.dumps({"prompt": "Hello"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": self.server.origin},
+        )
+        self.assertEqual(status, 503)
+        self.assertEqual(json.loads(payload)["error"], safe_message)
 
     def test_document_upload_list_and_remove_work_through_the_local_api(self) -> None:
         status, payload = self.request(
