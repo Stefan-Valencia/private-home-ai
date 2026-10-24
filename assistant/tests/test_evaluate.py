@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from pydantic_ai import ModelMessage, ModelResponse, TextPart, ToolCallPart
@@ -218,26 +219,45 @@ class EvaluationTests(unittest.TestCase):
         dataset = build_synthetic_dataset()
         followup_cases = [case for case in dataset["cases"] if case.get("history")]
         dataset["cases"] = followup_cases
-        observed_messages: list[list[ModelMessage]] = []
+        observed_requests: list[tuple[str, list[ModelMessage]]] = []
         answers = {
             "What color did I mention?": "The sample color was amber.",
             "How much morning sun did you say it needs?": "Six hours of morning sun.",
         }
 
-        def fake_model(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
-            observed_messages.append(messages)
-            user_prompts = [
-                part.content
-                for message in messages
-                if isinstance(message, ModelRequest)
-                for part in message.parts
-                if isinstance(part, UserPromptPart)
-            ]
-            return ModelResponse(parts=[TextPart(answers[user_prompts[-1]])])
+        class RecordingService:
+            def __init__(
+                self,
+                _settings: Settings,
+                *,
+                model: object,
+                documents: object,
+                run_timeout_seconds: int,
+            ) -> None:
+                self.documents = documents
 
-        report = run_model_evaluation(
-            Settings(), dataset, limit=2, timeout_seconds=30, model=FunctionModel(fake_model)
-        )
+            def chat_with_trace(
+                self, prompt: str, *, message_history: list[ModelMessage]
+            ) -> tuple[str, object]:
+                observed_requests.append((prompt, message_history))
+                deps = SimpleNamespace(
+                    tool_trace=[],
+                    blocked_tool_calls=0,
+                    tool_call_attempts=0,
+                    schema_valid_tool_arguments=0,
+                    tool_argument_validation_errors=0,
+                    delegation_attempts=0,
+                    delegations_used=0,
+                )
+                return answers[prompt], deps
+
+            def close(self) -> None:
+                self.documents.close()
+
+        with patch("home_ai.evaluate.HomeAIService", RecordingService):
+            report = run_model_evaluation(
+                Settings(), dataset, limit=2, timeout_seconds=30, model=object()
+            )
 
         metrics = report["metrics"]
         self.assertEqual(metrics["followup_cases_evaluated"], 2)
@@ -248,21 +268,20 @@ class EvaluationTests(unittest.TestCase):
         self.assertTrue(report["gates"]["followup_direct_tool_free_rate"])
         self.assertEqual(metrics["tool_call_attempts"], 0)
         self.assertEqual(metrics["delegation_attempts"], 0)
-        self.assertEqual(len(observed_messages), 2)
+        self.assertEqual(len(observed_requests), 2)
         first_user_text = [
             part.content
-            for message in observed_messages[0]
+            for message in observed_requests[0][1]
             if isinstance(message, ModelRequest)
             for part in message.parts
             if isinstance(part, UserPromptPart)
         ]
         self.assertIn("The sample color is amber.", first_user_text)
-        self.assertEqual(first_user_text[-1], "What color did I mention?")
+        self.assertEqual(observed_requests[0][0], "What color did I mention?")
         self.assertNotIn("The sample color is amber.", json.dumps(report))
         self.assertNotIn("What color did I mention?", json.dumps(report))
 
-    def test_direct_gate_counts_invalid_and_unknown_tool_calls(self) -> None
-        dataset = build_synthetic_dataset()
+    def test_direct_gate_counts_invalid_and_unknown_tool_calls(self) -> None:        dataset = build_synthetic_dataset()
         dataset["cases"] = [case for case in dataset["cases"] if case["id"].startswith("direct_")]
         turns = 0
 
