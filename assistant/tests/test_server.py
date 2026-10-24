@@ -89,6 +89,16 @@ class ChatHistoryValidationTests(unittest.TestCase):
         self.assertNotIn("localStorage", app)
         self.assertNotIn("sessionStorage", app)
 
+    def test_chat_transcript_is_named_focusable_and_keeps_ordered_announcements(self) -> None:
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        styles = (WEB_DIR / "styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="messages" class="messages" role="log"', html)
+        self.assertIn('aria-label="Conversation" tabindex="0"', html)
+        self.assertIn('aria-live="polite" aria-relevant="additions text"', html)
+        self.assertIn(".messages:focus-visible", styles)
+        self.assertIn("outline-offset: -4px", styles)
+
     def test_model_usage_limits_return_actionable_messages(self) -> None:
         context_error = UsageLimitExceeded("The next request would exceed the input_tokens_limit")
         message = _usage_limit_message(context_error)
