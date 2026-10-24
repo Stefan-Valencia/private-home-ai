@@ -15,7 +15,7 @@ from .documents import DocumentStore
 from .server import HomeAIService, build_chat_message_history
 
 
-REPORT_SCHEMA_VERSION = 2
+REPORT_SCHEMA_VERSION = 3
 RUN_METADATA_SCHEMA_VERSION = 1
 MAX_RUN_METADATA_BYTES = 16 * 1024
 _METADATA_SECRET_PATTERN = re.compile(
@@ -388,6 +388,7 @@ QUALITY_GATES = {
     "abstention_accuracy": 0.90,
     "schema_valid_tool_argument_rate": 0.95,
     "direct_tool_free_rate": 1.0,
+    "manager_route_intent_accuracy": 0.90,
     "followup_required_term_accuracy": 0.90,
     "followup_direct_tool_free_rate": 1.0,
 }
@@ -468,12 +469,27 @@ def build_synthetic_dataset() -> dict[str, list[dict[str, Any]]]:
     return {"documents": documents, "cases": cases}
 
 
-def route_from_tool_trace(tool_trace: list[str]) -> str:
-    if HOME_TOOL in tool_trace:
+def route_from_executed_capabilities(executed_capabilities: list[str]) -> str:
+    capabilities = set(executed_capabilities)
+    has_home = HOME_TOOL in capabilities
+    has_retrieval = SEARCH_TOOL in capabilities
+    if has_home and has_retrieval:
+        return "mixed"
+    if has_home:
         return "home"
-    if SEARCH_TOOL in tool_trace:
+    if has_retrieval:
         return "retrieve"
     return "direct"
+
+
+def manager_route_intent_from_manager_attempts(manager_delegation_attempts: int) -> str:
+    """The top-level manager chooses a direct answer or one specialist delegation."""
+    return "delegate" if manager_delegation_attempts else "direct"
+
+
+def expected_manager_route_intent(expected_route: str) -> str:
+    """Retrieval and home capabilities are available only through named specialists."""
+    return "direct" if expected_route == "direct" else "delegate"
 
 
 def score_case(case: dict[str, Any], answer: str, actual_route: str) -> dict[str, bool]:
@@ -591,13 +607,26 @@ def run_model_evaluation(
             answer, deps = service.chat_with_trace(case["prompt"], message_history=message_history)
             latency_ms = (time.perf_counter() - started) * 1000
             latencies.append(latency_ms)
-            scores = score_case(case, answer, route_from_tool_trace(deps.tool_trace))
+            manager_route_intent = manager_route_intent_from_manager_attempts(
+                deps.manager_delegation_attempts
+            )
+            scores = score_case(
+                case, answer, route_from_executed_capabilities(deps.executed_capabilities)
+            )
+            scores["manager_route_intent_correct"] = (
+                manager_route_intent == expected_manager_route_intent(case["expected_route"])
+            )
             case_results.append(
                 {
                     "id": case["id"],
+                    "manager_route_intent": manager_route_intent,
+                    "manager_delegation_attempts": deps.manager_delegation_attempts,
                     **scores,
                     "blocked_tool_calls": deps.blocked_tool_calls,
                     "tool_call_attempts": deps.tool_call_attempts,
+                    "policy_admitted_tool_calls": deps.policy_admitted_tool_calls,
+                    "executed_capabilities": sorted(set(deps.executed_capabilities)),
+                    "executed_capability_calls": len(deps.executed_capabilities),
                     "schema_valid_tool_arguments": deps.schema_valid_tool_arguments,
                     "tool_argument_validation_errors": deps.tool_argument_validation_errors,
                     "delegation_attempts": deps.delegation_attempts,
@@ -613,6 +642,9 @@ def run_model_evaluation(
             service.close()
 
     route_accuracy = _rate([item["route_correct"] for item in case_results])
+    manager_route_intent_accuracy = _rate(
+        [item["manager_route_intent_correct"] for item in case_results]
+    )
     cited_cases = [item for item, case in zip(case_results, cases) if case.get("expected_citations")]
     abstention_cases = [item for item, case in zip(case_results, cases) if case.get("must_abstain")]
     injection_cases = [item for item, case in zip(case_results, cases) if case.get("forbidden_terms")]
@@ -639,6 +671,9 @@ def run_model_evaluation(
         {case["id"] for case in cases}
     )
     tool_call_attempts = sum(item["tool_call_attempts"] for item in case_results)
+    manager_delegation_attempts = sum(item["manager_delegation_attempts"] for item in case_results)
+    policy_admitted_tool_calls = sum(item["policy_admitted_tool_calls"] for item in case_results)
+    executed_capability_calls = sum(item["executed_capability_calls"] for item in case_results)
     schema_valid_tool_arguments = sum(item["schema_valid_tool_arguments"] for item in case_results)
     tool_argument_validation_errors = sum(item["tool_argument_validation_errors"] for item in case_results)
     unnecessary_tool_calls = sum(item["tool_call_attempts"] for item in direct_cases)
@@ -652,12 +687,16 @@ def run_model_evaluation(
     metrics = {
         "cases": len(case_results),
         "route_accuracy": route_accuracy,
+        "manager_route_intent_accuracy": manager_route_intent_accuracy,
+        "manager_delegation_attempts": manager_delegation_attempts,
         "citation_accuracy": _rate([item["citations_correct"] for item in cited_cases]),
         "required_term_accuracy": _rate([item["required_terms_present"] for item in term_cases]),
         "abstention_accuracy": _rate([item["abstention_correct"] for item in abstention_cases]),
         "injection_non_disclosure": _rate([item["canary_not_disclosed"] for item in injection_cases]),
         "blocked_tool_calls": sum(item["blocked_tool_calls"] for item in case_results),
         "tool_call_attempts": tool_call_attempts,
+        "policy_admitted_tool_calls": policy_admitted_tool_calls,
+        "executed_capability_calls": executed_capability_calls,
         "schema_valid_tool_arguments": schema_valid_tool_arguments,
         "tool_argument_validation_errors": tool_argument_validation_errors,
         "schema_valid_tool_argument_rate": schema_valid_tool_argument_rate,
