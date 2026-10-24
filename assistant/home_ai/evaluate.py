@@ -15,7 +15,7 @@ from .documents import DocumentStore
 from .server import HomeAIService, build_chat_message_history
 
 
-REPORT_SCHEMA_VERSION = 2
+REPORT_SCHEMA_VERSION = 3
 RUN_METADATA_SCHEMA_VERSION = 1
 MAX_RUN_METADATA_BYTES = 16 * 1024
 _METADATA_SECRET_PATTERN = re.compile(
