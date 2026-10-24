@@ -28,7 +28,7 @@ Current status: the browser-only simulation is implemented. Access-point provisi
 - Review the threat model before making security claims.
 
 Exit evidence: authorized and unauthorized pairing cases are documented and tested.
-Current status: the design boundary and threat model are documented in [THREAT_MODEL.md](THREAT_MODEL.md). Pairing protocol and credential storage remain open decisions. A software-only lifecycle simulation using synthetic identifiers can proceed without hardware, but cannot satisfy physical authorization or cryptographic pairing exit evidence. Real pairing, network interception tests, and recovery behavior still require a selected design and target-device testing.
+Current status: the design boundary and threat model are documented in [THREAT_MODEL.md](THREAT_MODEL.md). Pairing protocol and credential storage remain open decisions. The software-only lifecycle simulation uses synthetic identifiers, clearly labels every state, and exercises authorization-window expiry, one-use enrollment, removal, reset, invalid transitions, and keyboard/screen-reader feedback. It cannot satisfy physical authorization or cryptographic pairing exit evidence. Real pairing, network interception tests, and recovery behavior still require a selected design and target-device testing.
 
 
 ## Milestone 3: Local AI and document question answering

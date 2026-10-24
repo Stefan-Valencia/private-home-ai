@@ -231,7 +231,10 @@ function renderPairingSimulation() {
   }
 
   const devices = element("section", "device-section");
-  devices.append(element("h2", "device-section-title", "Demo devices"));
+  const devicesHeading = element("h2", "device-section-title", "Demo devices");
+  devicesHeading.tabIndex = -1;
+  devicesHeading.dataset.focusKey = "device-list-heading";
+  devices.append(devicesHeading);
   if (pairingState.devices.length === 0) {
     devices.append(element("p", "fine-print", "No demo devices have been added."));
   } else {

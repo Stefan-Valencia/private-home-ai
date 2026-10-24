@@ -60,4 +60,5 @@ Use a fixed synthetic prompt set. Compare model sizes and quantizations on the a
 - Exercise simulated authorization-window start, expiry, one-use enrollment, list, revoke, reset, and invalid transitions.
 - Keep a visible “Simulation only” label in every state, especially active authorization, enrolled, expired, revoked, reset, error, and retry states; do not use “trusted” or “authenticated” for simulated devices.
 - Check that keyboard focus and screen-reader announcements make authorization-window start, enrollment, expiry, revocation, reset, invalid transitions, error states, and retry states clear.
+- After simulated device removal, confirm focus stays with the Demo devices section and screen readers announce that no credential was revoked.
 - Keep the simulation results separate from the physical-button, cryptographic protocol, network interception, credential storage, and recovery evidence above.

@@ -39,6 +39,7 @@ export function focusKeyAfterPairingAction(action, windowStatus) {
     && ["expired", "used"].includes(windowStatus)) {
     return "OPEN_WINDOW";
   }
+  if (action === "REMOVE_DEMO_DEVICE") return "device-list-heading";
   if (action === "RESET_SIMULATION") return "RESET_SIMULATION";
   return "page-heading";
 }
