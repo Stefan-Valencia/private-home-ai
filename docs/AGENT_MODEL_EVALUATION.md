@@ -34,7 +34,7 @@ Start with a deterministic fake provider for repeatable offline development. Add
 Evaluate these open-weight candidates:
 
 1. **Qwen3.6-35B-A3B** — the first model to try for the target class. Its card lists 35B total and 3B active parameters, Apache-2.0, tool-use serving guidance, and a native 262K context. Its card recommends Qwen-Agent for agent applications. These are model-card facts and vendor recommendations, not independent quality or speed results. [Model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)
-2. **OpenAI gpt-oss-20b** — a smaller local comparison for latency and resource use.
+2. **OpenAI gpt-oss-20b** — a smaller local comparison for latency and resource use. [Model card](https://huggingface.co/openai/gpt-oss-20b)
 3. **OpenAI gpt-oss-120b** — a higher-capacity comparison. Its card lists 117B total and 5.1B active parameters, Apache-2.0, and native function-calling capability. The card's single 80GB GPU statement does not establish that it will fit or perform acceptably in an integrated-memory appliance. [Model card](https://huggingface.co/openai/gpt-oss-120b)
 
 Model size alone is not a selection criterion. Quantization, context size, runtime support, prompt format, tool-call reliability, answer quality, memory use, and sustained speed all need measurement. Review the license of the actual quantized artifact and its conversion separately before redistribution.
@@ -62,7 +62,7 @@ This can validate service logic, state transitions, and browser behavior. It can
 
 ## Effort and expected result
 
-The AI software slice is estimated at **4–6 engineering days** after the onboarding prototype:
+The AI software slice is estimated at **4–7 engineering days** after the onboarding prototype:
 
 - 1–2 days: provider interface, manager, bounded delegation, and policy-checked simulated tools.
 - 2–3 days: text/PDF ingestion, local retrieval, citations, and clear unsupported-content behavior.
