@@ -25,6 +25,6 @@ Status: open.
 Benchmark AMD-compatible runtimes and backends on the exact system. Do not choose a default based on model fit alone.
 
 ### Repository and model licenses
-Status: open.
+Status: CC0 1.0 Universal is present in LICENSE.
 
-The repository is public, but no project license has been selected. Model weights and datasets require their own license review.
+Code, model weights, datasets, and other artifacts can have different license terms. Review each separately before bundling or redistributing it.
