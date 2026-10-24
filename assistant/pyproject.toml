@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "private-home-ai"
+version = "0.1.0"
+description = "Local-first home AI chat and document Q&A prototype"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic-ai-slim[openai]==2.60.0",
+  "pydantic-ai-harness==0.60.0",
+  "httpx2==2.16.0",
+  "pypdf==6.21.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["home_ai*"]
+
+[tool.setuptools.package-data]
+home_ai = ["web/*.html", "web/*.js", "web/*.css"]

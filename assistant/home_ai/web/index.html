@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f5f2">
+    <title>Private Home AI — Local chat prototype</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Private Home AI home">
+          <span class="brand-mark" aria-hidden="true">P</span>
+          <span>Private Home AI</span>
+        </a>
+        <span class="prototype-badge">Local chat prototype</span>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <p class="eyebrow">Your home, your files, your assistant</p>
+          <h1 id="page-title">Ask one question.<br><span>It will choose the next step.</span></h1>
+          <p class="lede">The assistant can answer directly, search your local documents, or check simulated home status. It cannot control devices.</p>
+          <div class="privacy-note" role="status">
+            <span class="status-dot" id="status-dot" aria-hidden="true"></span>
+            <span id="model-status">Checking the local model…</span>
+            <button id="model-check-button" class="quiet-button" type="button">Check again</button>
+            <span class="privacy-label">Local-only</span>
+          </div>
+        </section>
+
+        <section class="workspace" aria-label="Assistant workspace">
+          <aside class="documents-card" aria-labelledby="documents-title">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Stored on this computer</p>
+                <h2 id="documents-title">Your documents</h2>
+              </div>
+              <span class="document-count" id="document-count">0</span>
+            </div>
+            <p class="document-copy">Text files and text-based PDFs are indexed locally for cited answers. Scanned PDFs and OCR are not supported yet.</p>
+            <input class="sr-only" id="document-file" type="file" accept=".txt,.pdf,text/plain,application/pdf">
+            <label class="upload-button" for="document-file">＋ Add a document</label>
+            <p id="upload-status" class="upload-status" role="status"></p>
+            <ul id="document-list" class="document-list"></ul>
+            <div class="security-footnote">
+              <span aria-hidden="true">◉</span>
+              <div>
+                <p>Nothing is sent to a cloud model. If the local model is unavailable, chat stops without a remote fallback.</p>
+                <p>The local document index is not encrypted at rest.</p>
+              </div>
+            </div>
+          </aside>
+
+          <div class="chat-card">
+            <div class="chat-heading">
+              <div>
+                <h2>Home assistant</h2>
+                <p>One prompt in. The assistant decides whether to use an allowed local capability.</p>
+              </div>
+              <span class="lock-mark" aria-hidden="true">⌂</span>
+            </div>
+            <div id="messages" class="messages" aria-live="polite" aria-relevant="additions text">
+              <div class="message assistant-message">
+                <span class="message-label">Assistant</span>
+                <p>Hi. Add a text or PDF document, then ask me about it. This prototype uses a local model and synthetic home status only.</p>
+              </div>
+            </div>
+            <form id="chat-form" class="composer">
+              <label class="sr-only" for="prompt">Your question</label>
+              <textarea id="prompt" name="prompt" rows="2" maxlength="8000" placeholder="Ask anything about your documents…" required></textarea>
+              <div class="composer-actions">
+                <span class="hint">Enter to send · Shift+Enter for a new line</span>
+                <button id="send-button" type="submit">Send <span aria-hidden="true">↗</span></button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>Private Home AI · Software prototype</span>
+        <span>No real devices are connected</span>
+      </footer>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

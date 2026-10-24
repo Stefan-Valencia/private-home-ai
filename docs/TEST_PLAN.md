@@ -29,6 +29,15 @@ This plan defines evidence to gather; it does not claim any checks have already 
 - Test unsupported, oversized, malformed, and encrypted files with clear user errors.
 - Confirm prompts, documents, embeddings, and indexes remain local by default.
 
+## Software-in-loop assistant checks
+- Exercise direct response and one manager-to-specialist document-search flow with deterministic fake models.
+- Confirm specialist results and retrieved excerpts are labeled as untrusted evidence and a prohibited tool handler never runs, including when a deterministic model attempts an unauthorized action after seeing an injected document.
+- Confirm proxy environment variables cannot redirect inference or health requests, redirects are rejected, and API Host/Origin checks reject browser cross-origin requests.
+- Test per-page and cumulative compressed PDF expansion limits, database permissions on POSIX, local-index removal, upload limits, and citation preservation.
+- Send an incomplete upload and confirm its total body-read deadline lets server shutdown finish.
+- Build a wheel and confirm the packaged application includes its HTML, JavaScript, and CSS assets.
+- Record that fake-model results do not prove real-model answer quality, offline behavior, speed, or target-hardware compatibility.
+
 ## Model and hardware benchmark
 For each model/runtime/backend combination, record:
 - Hardware, BIOS settings, OS, kernel, driver, and runtime versions.
@@ -42,4 +51,3 @@ Use a fixed synthetic prompt set. Compare model sizes and quantizations on the a
 - Threat-model first boot, pairing, local-network access, device theft, storage loss, updates, and recovery.
 - Verify update signature checks, rollback behavior, and documented recovery path before production claims.
 - Run an independent review of pairing and authentication before calling the appliance production-ready.
-
