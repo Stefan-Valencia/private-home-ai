@@ -534,6 +534,7 @@ class EvaluationTests(unittest.TestCase):
         metrics = report["metrics"]
         self.assertFalse(case_result["route_correct"])
         self.assertEqual(case_result["manager_route_intent"], "delegate")
+        self.assertEqual(case_result["manager_delegation_attempts"], 1)
         self.assertTrue(case_result["manager_route_intent_correct"])
         self.assertEqual(case_result["executed_capabilities"], [DELEGATE_TOOL])
         self.assertNotIn(SEARCH_TOOL, case_result["executed_capabilities"])
