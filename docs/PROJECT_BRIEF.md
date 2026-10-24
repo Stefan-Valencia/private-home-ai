@@ -23,7 +23,7 @@ Make a private local AI computer feel as easy to set up as a home router. The ap
 - Browser-based chat using a local inference runtime.
 - Local document ingestion, retrieval, and question answering.
 - Basic trusted-device management and clear privacy status.
-- No mandatory cloud account, cloud inference, or remote access in the baseline MVP.
+- No mandatory cloud account or conventional username/password login; no cloud inference or remote access in the baseline MVP.
 
 ## Security and privacy goals
 - Require physical access to authorize a new trusted device.

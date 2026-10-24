@@ -9,6 +9,11 @@ Status: accepted as the MVP baseline.
 
 The appliance should run inference and process documents locally by default. Remote access and cloud inference are deferred.
 
+### Device-key access without a conventional account
+Status: accepted product requirement.
+
+The appliance must not require a conventional username/password account. Trusted-device access should use cryptographic credentials authorized locally during setup or a physical pairing action. This does not select the pairing protocol, browser/native approach, credential storage, revocation, or recovery design; those remain open under the trusted-device pairing decision.
+
 ### Inexpensive laptop before target hardware
 Status: accepted as the development sequence.
 
