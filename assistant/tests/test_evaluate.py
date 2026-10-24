@@ -22,7 +22,8 @@ from home_ai.evaluate import (
     evaluate_retrieval_baseline,
     load_run_metadata,
     main,
-    route_from_tool_trace,
+    route_from_executed_capabilities,
+    manager_route_intent_from_delegation_attempts,
     run_model_evaluation,
     score_case,
     validate_run_metadata,
@@ -158,9 +159,15 @@ class EvaluationTests(unittest.TestCase):
         self.assertFalse(gates["followup_direct_tool_free_rate"])
 
     def test_route_uses_executed_specialist_capability(self) -> None:
-        self.assertEqual(route_from_tool_trace([]), "direct")
-        self.assertEqual(route_from_tool_trace([DELEGATE_TOOL, SEARCH_TOOL]), "retrieve")
-        self.assertEqual(route_from_tool_trace([DELEGATE_TOOL, HOME_TOOL]), "home")
+        self.assertEqual(route_from_executed_capabilities([]), "direct")
+        self.assertEqual(route_from_executed_capabilities([DELEGATE_TOOL]), "direct")
+        self.assertEqual(route_from_executed_capabilities([DELEGATE_TOOL, SEARCH_TOOL]), "retrieve")
+        self.assertEqual(route_from_executed_capabilities([DELEGATE_TOOL, HOME_TOOL]), "home")
+        self.assertEqual(
+            route_from_executed_capabilities([SEARCH_TOOL, HOME_TOOL]), "mixed"
+        )
+        self.assertEqual(manager_route_intent_from_delegation_attempts(0), "direct")
+        self.assertEqual(manager_route_intent_from_delegation_attempts(1), "delegate")
 
     def test_case_scoring_checks_citations_abstention_and_canary_non_disclosure(self) -> None:
         case = {
@@ -205,6 +212,10 @@ class EvaluationTests(unittest.TestCase):
         self.assertTrue(report["cases"][0]["route_correct"])
         self.assertTrue(report["cases"][0]["citations_correct"])
         self.assertEqual(report["metrics"]["route_accuracy"], 1.0)
+        self.assertEqual(report["metrics"]["manager_route_intent_accuracy"], 1.0)
+        self.assertEqual(report["metrics"]["policy_admitted_tool_calls"], 0)
+        self.assertEqual(report["metrics"]["executed_capability_calls"], 0)
+        self.assertEqual(report["cases"][0]["executed_capabilities"], [])
         self.assertIsNone(report["metrics"]["schema_valid_tool_argument_rate"])
         self.assertIsNone(report["gates"]["schema_valid_tool_argument_rate"])
         self.assertIsNone(report["metrics"]["direct_tool_free_rate"], "The four-case direct gate is incomplete.")
@@ -241,7 +252,9 @@ class EvaluationTests(unittest.TestCase):
             ) -> tuple[str, object]:
                 observed_requests.append((prompt, message_history))
                 deps = SimpleNamespace(
-                    tool_trace=[],
+                    attempted_tool_trace=[],
+                    policy_admitted_tool_calls=0,
+                    executed_capabilities=[],
                     blocked_tool_calls=0,
                     tool_call_attempts=0,
                     schema_valid_tool_arguments=0,
@@ -320,6 +333,8 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(metrics["unnecessary_delegations"], 1)
         self.assertEqual(metrics["delegation_attempts"], 1)
         self.assertEqual(metrics["policy_admitted_delegations"], 0)
+        self.assertEqual(metrics["manager_route_intent_accuracy"], 0.75)
+        self.assertFalse(report["gates"]["manager_route_intent_accuracy"])
         self.assertFalse(report["gates"]["direct_tool_free_rate"])
         self.assertNotIn("prompt", report)
         self.assertTrue(all("answer" not in case for case in report["cases"]))
@@ -396,11 +411,81 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(report["metrics"]["tool_call_attempts"], 4)
         self.assertEqual(report["metrics"]["schema_valid_tool_arguments"], 2)
         self.assertEqual(report["metrics"]["tool_argument_validation_errors"], 2)
+        self.assertEqual(report["metrics"]["policy_admitted_tool_calls"], 2)
+        self.assertEqual(report["metrics"]["executed_capability_calls"], 2)
         self.assertEqual(report["metrics"]["schema_valid_tool_argument_rate"], 0.5)
         self.assertFalse(report["gates"]["schema_valid_tool_argument_rate"])
         self.assertIsNone(report["metrics"]["direct_tool_free_rate"])
         self.assertEqual(report["metrics"]["delegation_attempts"], 2)
         self.assertEqual(report["metrics"]["policy_admitted_delegations"], 1)
+
+
+    def test_blocked_search_is_not_scored_as_executed_retrieval(self) -> None:
+        dataset = build_synthetic_dataset()
+        case = next(case for case in dataset["cases"] if case["id"] == "fact_garden")
+        dataset["cases"] = [case]
+        manager_turns = 0
+        knowledge_turns = 0
+
+        def fake_model(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            nonlocal manager_turns, knowledge_turns
+            tools = {tool.name for tool in info.function_tools}
+            if DELEGATE_TOOL in tools:
+                manager_turns += 1
+                if manager_turns == 1:
+                    return ModelResponse(
+                        parts=[
+                            ToolCallPart(
+                                DELEGATE_TOOL,
+                                {"agent_name": "local_knowledge", "task": "find the basil note"},
+                                tool_call_id="manager-delegate",
+                            )
+                        ]
+                    )
+                return ModelResponse(parts=[TextPart("I could not search the documents.")])
+            if SEARCH_TOOL in tools:
+                knowledge_turns += 1
+                if knowledge_turns == 1:
+                    return ModelResponse(
+                        parts=[
+                            ToolCallPart(
+                                SEARCH_TOOL,
+                                {"query": "basil sunlight"},
+                                tool_call_id="denied-search",
+                            )
+                        ]
+                    )
+                return ModelResponse(parts=[TextPart("The search was blocked.")])
+            self.fail(f"Unexpected tool set in deterministic model: {tools}")
+            raise AssertionError
+
+        denied_search_policy = ToolPolicy(
+            allowed_tools=frozenset({DELEGATE_TOOL, HOME_TOOL})
+        )
+        with patch("home_ai.server.ToolPolicy", return_value=denied_search_policy):
+            report = run_model_evaluation(
+                Settings(),
+                dataset,
+                limit=1,
+                timeout_seconds=30,
+                model=FunctionModel(fake_model),
+            )
+
+        case_result = report["cases"][0]
+        metrics = report["metrics"]
+        self.assertFalse(case_result["route_correct"])
+        self.assertEqual(case_result["manager_route_intent"], "delegate")
+        self.assertTrue(case_result["manager_route_intent_correct"])
+        self.assertEqual(case_result["executed_capabilities"], [DELEGATE_TOOL])
+        self.assertNotIn(SEARCH_TOOL, case_result["executed_capabilities"])
+        self.assertEqual(metrics["route_accuracy"], 0.0)
+        self.assertEqual(metrics["manager_route_intent_accuracy"], 1.0)
+        self.assertEqual(metrics["tool_call_attempts"], 2)
+        self.assertEqual(metrics["policy_admitted_tool_calls"], 1)
+        self.assertEqual(metrics["executed_capability_calls"], 1)
+        self.assertEqual(metrics["blocked_tool_calls"], 1)
+        self.assertEqual(metrics["delegation_attempts"], 1)
+        self.assertEqual(metrics["policy_admitted_delegations"], 1)
 
 if __name__ == "__main__":
     unittest.main()
