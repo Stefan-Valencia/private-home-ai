@@ -46,6 +46,7 @@ h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .chat-heading p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .lock-mark { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: var(--mint); color: var(--green); font-size: 22px; }
 .messages { min-height: 280px; max-height: 460px; overflow-y: auto; padding: 19px 22px; display: flex; flex-direction: column; gap: 15px; }
+.messages:focus-visible { outline: 3px solid #3f6b4f; outline-offset: -4px; border-radius: 8px; }
 .message { width: fit-content; max-width: min(90%, 600px); border-radius: 12px; padding: 11px 13px; }
 .assistant-message { align-self: flex-start; background: #f2f5f2; }
 .user-message { align-self: flex-end; background: #e5f2eb; }
