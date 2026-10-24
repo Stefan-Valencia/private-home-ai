@@ -32,6 +32,7 @@ This plan defines evidence to gather; it does not claim any checks have already 
 
 ## Software-in-loop assistant checks
 - Exercise direct response and one manager-to-specialist document-search flow with deterministic fake models.
+- With a long conversation, verify keyboard users can focus and scroll the named Conversation region, its focus indicator remains visible, and appended messages are announced in order.
 - Verify follow-up questions receive only bounded user/assistant text history, reject client-supplied tool/system messages and oversized context, and confirm **New chat** or refresh clears history without writing it to browser storage or SQLite.
 - Evaluate the two synthetic text-only follow-up cases with deterministic models; confirm prior user/assistant messages reach the model, fact recall and context-only tool/delegation gates are reported separately, and reports omit prompts, history, and answers.
 - Confirm an assistant model input-budget rejection returns a clear instruction to start a new chat or shorten the request.
