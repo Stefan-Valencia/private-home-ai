@@ -281,6 +281,13 @@ class EvaluationTests(unittest.TestCase):
         self.assertNotIn("The sample color is amber.", json.dumps(report))
         self.assertNotIn("What color did I mention?", json.dumps(report))
 
+        with patch("home_ai.evaluate.HomeAIService", RecordingService):
+            partial_report = run_model_evaluation(
+                Settings(), dataset, limit=1, timeout_seconds=30, model=object()
+            )
+        self.assertIsNone(partial_report["metrics"]["followup_required_term_accuracy"])
+        self.assertIsNone(partial_report["gates"]["followup_required_term_accuracy"])
+
     def test_direct_gate_counts_invalid_and_unknown_tool_calls(self) -> None:
         dataset = build_synthetic_dataset()
         dataset["cases"] = [case for case in dataset["cases"] if case["id"].startswith("direct_")]
