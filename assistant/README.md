@@ -64,6 +64,7 @@ The runner uses 20 synthetic documents and 40 fixed requests. It reports per-cas
 - Uploads are limited to 10 MiB, 100 PDF pages, 2 MiB of decoded page content per page, 8 MiB across the whole PDF, and 500,000 extracted characters. Only UTF-8 text and selectable-text PDFs are supported. Scanned files, OCR, encrypted PDFs, and office documents are not supported.
 - Incomplete HTTP request bodies have a ten-second total read deadline so a stalled upload cannot hold server shutdown indefinitely.
 - Model output and document contents are untrusted. The available tools are limited to document search and simulated home status; no shell, internet, or device-control tools are exposed.
+- Unexpected model or backend failures return a generic chat error; only explicitly typed, user-safe availability, busy, timeout, and usage-limit messages are shown.
 - This remains a software-in-loop prototype. Pairing, access-point setup, storage encryption, signed updates, recovery, model performance, and real-phone usability have not been validated on the target appliance.
 
 ## Local checks

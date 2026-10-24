@@ -33,7 +33,11 @@ MAX_MODEL_OUTPUT_TOKENS = 1_200
 REQUEST_TIMEOUT_SECONDS = 120
 
 
-class ModelUnavailable(RuntimeError):
+class AssistantUserError(RuntimeError):
+    """A safe, actionable assistant error intended to be shown to the user."""
+
+
+class ModelUnavailable(AssistantUserError):
     """The configured local inference server is not available."""
 
 

@@ -50,7 +50,7 @@ These are design goals. Each requires an implementation and test before it can b
 | Database or appliance theft | Offline exposure of documents, credentials, and prompts | Decide storage encryption and key recovery; minimize retained data; explain physical-theft limits | Prototype SQLite index is plaintext; storage protection is open |
 | Malicious or rolled-back update | Persistent compromise or weakened security | Signed updates, protected signing keys, version/rollback policy, verified recovery image, and update-failure tests | Not implemented |
 | Reset or recovery misuse | Owner lockout, residual access, or accidental data loss | Explicit reset semantics, credential revocation/key rotation, backup expectations, and a verified recovery path | Open; target hardware unavailable |
-| Logs, crash reports, or diagnostics leak secrets | Private content or credentials exposed to local users or support channels | Redact by design; do not transmit telemetry by default; inspect logs and crash paths using synthetic canaries | No telemetry by default; full appliance logging review remains open |
+| Logs, crash reports, or diagnostics leak secrets | Private content or credentials exposed to local users or support channels | Redact by design; return generic errors for unexpected model/backend failures; do not transmit telemetry by default; inspect logs and crash paths using synthetic canaries | The chat API returns a generic message for unexpected failures and exposes only explicitly typed safe assistant errors; full appliance logging review remains open |
 
 ## Pairing design choices that require a product/security decision
 
