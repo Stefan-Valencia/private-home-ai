@@ -62,4 +62,5 @@ Compare several model sizes and quantizations on the target system. Measure mode
 - Pairing protocol and independent security review.
 - Storage encryption and recovery experience.
 - Update mechanism, signing keys, and rollback design.
-- Repository license and model-artifact distribution terms.
+- Model-artifact and dataset distribution terms.
+

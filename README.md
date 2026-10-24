@@ -23,4 +23,11 @@ See the project brief and roadmap for requirements and milestones.
 
 ## License
 
-The repository is public, but a license has not been selected yet. Until a LICENSE file is added, do not assume the code is licensed for reuse.
+The repository includes CC0 1.0 Universal in LICENSE. Model weights, datasets, and third-party dependencies have separate license terms.
+
+## Run the onboarding simulation
+
+From this directory, run `python -m http.server 4173` and open `http://localhost:4173` in a browser. The current setup flow is a UI and state-machine simulation only: it does not enable Wi-Fi, generate cryptographic keys, pair a device, or accept network credentials.
+
+Run the state-machine checks with `node --test`.
+

@@ -10,6 +10,7 @@ The roadmap is ordered to prove the customer journey cheaply before optimizing t
 Exit evidence: a reviewed project brief and a test plan with clear success measures.
 
 ## Milestone 1: First-boot setup prototype on inexpensive Linux hardware
+- Start with a clearly labeled UI/state-machine simulation that uses only synthetic state; it must not enable Wi-Fi, create real keys, or collect network credentials.
 - Create the temporary Wi-Fi access point.
 - Serve a phone-friendly local setup page.
 - Configure and join the home Wi-Fi network.
@@ -17,6 +18,8 @@ Exit evidence: a reviewed project brief and a test plan with clear success measu
 - Test setup from a factory-reset state on real phones.
 
 Exit evidence: repeatable phone-to-appliance onboarding with reset and recovery instructions.
+
+Current status: the browser-only simulation is implemented. Access-point provisioning, home Wi-Fi recovery, and phone testing remain unverified and require the target Linux appliance.
 
 ## Milestone 2: Local identity and trusted-device flow
 - Generate a fresh local appliance identity during initialization.
@@ -52,3 +55,4 @@ Exit evidence: an alpha release with recovery instructions, known limitations, a
 
 ## Later work
 Evaluate remote access, multi-user support, fleet management, and manufacturing only after the local-network MVP succeeds.
+

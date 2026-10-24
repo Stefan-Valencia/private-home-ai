@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f5f2">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>Private Home AI — Setup prototype</title>
+    <link rel="stylesheet" href="/src/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="wordmark" href="/" aria-label="Private Home AI home">
+          <span class="brand-mark" aria-hidden="true">P</span>
+          <span>Private Home AI</span>
+        </a>
+        <span class="prototype-badge">Setup simulation</span>
+      </header>
+      <main id="app" class="main-content"></main>
+      <footer class="footer">
+        <span>Local-first by design</span>
+        <span>Prototype only · no network or credentials are used</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>
+
