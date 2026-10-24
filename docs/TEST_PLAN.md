@@ -5,6 +5,7 @@ This plan defines evidence to gather; it does not claim any checks have already 
 ## Development-only onboarding simulation
 - Verify the state machine follows welcome, temporary setup network, demo identity, simulated physical pairing, test-network selection, connection success/failure, retry, ready, and reset states.
 - Verify invalid transitions fail at every stage and reset returns to the initial state, including from partial setup.
+- After an unavailable demo router, confirm the simulated setup network remains active, the device stays disconnected, success is rejected from network selection, and a successful retry reaches Ready and closes the simulated access point.
 - Confirm the simulation does not ask for passwords or access Wi-Fi hardware, and that its content policy blocks outbound connections.
 - Keep simulated pairing visibly distinct from actual hardware authorization.
 - On every active setup step, confirm **Reset setup simulation** returns to Welcome, clears in-memory setup state, focuses the new heading, and announces that no real Wi-Fi or device changes were made.
