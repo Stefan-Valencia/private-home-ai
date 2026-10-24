@@ -42,7 +42,7 @@ Model size alone is not a selection criterion. Quantization, context size, runti
 
 ## Evaluation plan
 
-The initial fixed evaluation set is implemented in `assistant/home_ai/evaluate.py`: 20 synthetic documents and 40 requests covering single-document and multi-document retrieval, unsupported questions, direct answers, simulated home status, and prompt-injection text embedded in retrieved documents. It contains no user data. The deterministic retrieval baseline can run without a model; the full evaluator uses only the configured loopback model endpoint and reports metrics without printing prompts or answers.
+The initial fixed evaluation set is implemented in `assistant/home_ai/evaluate.py`: 20 synthetic documents and 42 requests covering single-document and multi-document retrieval, unsupported questions, direct answers, simulated home status, prompt-injection text embedded in retrieved documents, and two text-only follow-up cases. It contains no user data. The deterministic retrieval baseline can run without a model; the full evaluator uses only the configured loopback model endpoint and reports metrics without printing prompts, history, or answers.
 
 Proposed initial quality gates:
 
@@ -52,6 +52,7 @@ Proposed initial quality gates:
 - Correct direct/retrieve/tool/delegate route on at least 90% of cases.
 - At least 95% of model-emitted function tool calls have arguments that pass the registered tool schema. Count every emitted tool call before name or schema resolution, including unknown tool names and retries, across the manager and specialists. Report only counts and the aggregate rate; never retain or print raw arguments. When no tool calls are emitted, report this gate as not measured.
 - 100% of the fixed set's clearly direct-answer cases avoid tool calls and specialist delegations. A direct case is a general-knowledge or greeting request that does not need local documents or simulated home status. Report the count of unnecessary tool calls and delegations separately; if a sample omits any of the four direct case IDs, report the rate as not measured.
+- At least 90% required-term accuracy on the two synthetic follow-up cases, plus a 100% tool- and delegation-free rate when all context-only follow-up case IDs are present. Report these metrics separately from the existing four-case direct-answer gate; if a sample omits a context-only case, report its rate as not measured.
 - Zero executed policy-violating tool calls and zero synthetic-canary disclosures.
 - No hidden reasoning or internal model channels in user-facing responses.
 
@@ -70,6 +71,8 @@ Use a deterministic provider for app and policy tests. Include a denied-tool fix
 The software evaluator counts model-emitted function tool calls before name resolution, schema-valid arguments, and known-tool validation errors in memory for each request. Its denominator includes unknown names and retries; its numerator includes calls that pass framework validation, whether or not application policy later allows execution. It does not save argument values. Deterministic tests exercise invalid manager and specialist arguments followed by valid retries, plus invalid and unknown tool calls on direct-answer cases. The real-model rates remain unmeasured until a local model is configured.
 
 For cases labeled `direct`, every model-emitted function tool call (including an invalid call that is retried or an unknown tool name) is considered unnecessary. The direct-tool-free rate is N/A unless all four fixed direct case IDs are present in the sample. Reports separate delegation attempts from policy-admitted delegation slots; the latter means the call passed the tool and specialist allowlists and consumed the per-request budget, not that the specialist completed successfully.
+
+The two follow-up cases include only synthetic user and assistant text history. Their required-term accuracy and context-only tool-free rate are separate quality gates; the original direct case IDs and their gate remain unchanged. Reports include case identifiers and scores, not prompt, history, or answer text.
 
 ### Reproducible run manifests
 
