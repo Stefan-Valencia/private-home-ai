@@ -23,4 +23,4 @@ See the project brief and roadmap for requirements and milestones.
 
 ## License
 
-The repository is public, but a license has not been selected yet. Until a LICENSE file is added, do not assume the code is licensed for reuse.
+The repository source code is released under CC0 1.0 Universal (see LICENSE). Model weights, datasets, and third-party dependencies have separate license terms.
