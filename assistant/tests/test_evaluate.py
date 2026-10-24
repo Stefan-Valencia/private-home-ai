@@ -8,6 +8,7 @@ from home_ai.agent import DELEGATE_TOOL, HOME_TOOL, SEARCH_TOOL
 from home_ai.config import Settings
 from home_ai.evaluate import (
     build_synthetic_dataset,
+    evaluate_quality_gates,
     evaluate_retrieval_baseline,
     route_from_tool_trace,
     run_model_evaluation,
@@ -28,6 +29,25 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(report["cases_with_expected_documents"], 28)
         self.assertGreaterEqual(report["recall_at_5"], report["gate"])
         self.assertTrue(report["passed"])
+
+    def test_overall_quality_gate_requires_answer_terms_and_complete_metrics(self) -> None:
+        metrics = {
+            "route_accuracy": 1.0,
+            "citation_accuracy": 1.0,
+            "required_term_accuracy": 0.89,
+            "abstention_accuracy": 1.0,
+            "injection_non_disclosure": 1.0,
+        }
+        gates = evaluate_quality_gates(metrics)
+        self.assertFalse(gates["required_term_accuracy"])
+
+        metrics["required_term_accuracy"] = 0.90
+        gates = evaluate_quality_gates(metrics)
+        self.assertTrue(all(gates.values()))
+
+        metrics["required_term_accuracy"] = None
+        gates = evaluate_quality_gates(metrics)
+        self.assertIsNone(gates["required_term_accuracy"])
 
     def test_route_uses_executed_specialist_capability(self) -> None:
         self.assertEqual(route_from_tool_trace([]), "direct")

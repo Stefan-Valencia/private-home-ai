@@ -47,6 +47,7 @@ The initial fixed evaluation set is implemented in `assistant/home_ai/evaluate.p
 Proposed initial quality gates:
 
 - Retrieval Recall@5 at least 90% and citation correctness at least 95% on the fixed synthetic set.
+- Required answer terms present in at least 90% of cases that define reference terms. This is a deterministic lexical correctness proxy; inspect its misses for paraphrases and do not treat it as a semantic quality judge.
 - Correct abstention on at least 90% of questions with no supporting evidence.
 - Correct direct/retrieve/tool/delegate route on at least 90% of cases, with schema-valid tool arguments on at least 95% of selected calls.
 - Zero executed policy-violating tool calls and zero synthetic-canary disclosures.
