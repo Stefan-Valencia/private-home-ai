@@ -117,7 +117,7 @@ test("pairing actions focus the next step when the current control disappears", 
   assert.equal(focusKeyAfterPairingAction("ADD_DEMO_DEVICE", "expired"), "OPEN_WINDOW");
   assert.equal(focusKeyAfterPairingAction("SIMULATE_EXPIRY", "expired"), "OPEN_WINDOW");
   assert.equal(focusKeyAfterPairingAction("RESET_SIMULATION", "closed"), "RESET_SIMULATION");
-  assert.equal(focusKeyAfterPairingAction("REMOVE_DEMO_DEVICE", "used"), "page-heading");
+  assert.equal(focusKeyAfterPairingAction("REMOVE_DEMO_DEVICE", "used"), "device-list-heading");
 });
 
 test("the pairing screen keeps simulation and accessibility boundaries visible", async () => {
@@ -133,6 +133,7 @@ test("the pairing screen keeps simulation and accessibility boundaries visible",
   assert.match(app, /focusKeyAfterPairingAction/);
   assert.match(app, /focusKeyAfterWindowExpiry/);
   assert.match(app, /data-focus-key/);
+  assert.match(app, /const devicesHeading = element\("h2", "device-section-title", "Demo devices"\);[\s\S]*?devicesHeading\.tabIndex = -1;[\s\S]*?devicesHeading\.dataset\.focusKey = "device-list-heading";[\s\S]*?devices\.append\(devicesHeading\);/);
   assert.match(styles, /\.button:focus-visible\s*\{\s*outline: 3px solid #176b4b;/);
   assert.doesNotMatch(app + pairing, /\b(localStorage|sessionStorage|indexedDB|document\.cookie|fetch\s*\()/i);
   assert.match(index, /no appliance Wi-Fi setup, external services, or credentials are used/i);
