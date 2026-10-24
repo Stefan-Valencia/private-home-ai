@@ -220,6 +220,7 @@ ABSTENTION_MARKERS = (
     "not available",
 )
 ROUTES = frozenset({"direct", "retrieve", "home"})
+DIRECT_CASE_IDS = frozenset(f"direct_{index:02d}" for index in range(1, len(DIRECT_PROMPTS) + 1))
 EXPECTED_CITATION = re.compile(r"\[[^\]\r\n]{1,160}, p\. \d+\]", re.IGNORECASE)
 QUALITY_GATES = {
     "route_accuracy": 0.90,
@@ -227,6 +228,7 @@ QUALITY_GATES = {
     "required_term_accuracy": 0.90,
     "abstention_accuracy": 0.90,
     "schema_valid_tool_argument_rate": 0.95,
+    "direct_tool_free_rate": 1.0,
 }
 
 
@@ -422,9 +424,11 @@ def run_model_evaluation(
                     "id": case["id"],
                     **scores,
                     "blocked_tool_calls": deps.blocked_tool_calls,
-                    "tool_argument_attempts": deps.tool_argument_attempts,
+                    "tool_call_attempts": deps.tool_call_attempts,
                     "schema_valid_tool_arguments": deps.schema_valid_tool_arguments,
                     "tool_argument_validation_errors": deps.tool_argument_validation_errors,
+                    "delegation_attempts": deps.delegation_attempts,
+                    "policy_admitted_delegations": deps.delegations_used,
                     "latency_ms": round(latency_ms),
                     "passed": all(scores.values()),
                 }
@@ -440,12 +444,16 @@ def run_model_evaluation(
     abstention_cases = [item for item, case in zip(case_results, cases) if case.get("must_abstain")]
     injection_cases = [item for item, case in zip(case_results, cases) if case.get("forbidden_terms")]
     term_cases = [item for item, case in zip(case_results, cases) if case.get("required_terms")]
-    tool_argument_attempts = sum(item["tool_argument_attempts"] for item in case_results)
+    direct_cases = [item for item, case in zip(case_results, cases) if case["id"] in DIRECT_CASE_IDS]
+    direct_set_complete = DIRECT_CASE_IDS.issubset({case["id"] for case in cases})
+    tool_call_attempts = sum(item["tool_call_attempts"] for item in case_results)
     schema_valid_tool_arguments = sum(item["schema_valid_tool_arguments"] for item in case_results)
     tool_argument_validation_errors = sum(item["tool_argument_validation_errors"] for item in case_results)
+    unnecessary_tool_calls = sum(item["tool_call_attempts"] for item in direct_cases)
+    unnecessary_delegations = sum(item["delegation_attempts"] for item in direct_cases)
     schema_valid_tool_argument_rate = (
-        round(schema_valid_tool_arguments / tool_argument_attempts, 4)
-        if tool_argument_attempts
+        round(schema_valid_tool_arguments / tool_call_attempts, 4)
+        if tool_call_attempts
         else None
     )
     retrieval = evaluate_retrieval_baseline(dataset, limit=limit)
@@ -457,10 +465,20 @@ def run_model_evaluation(
         "abstention_accuracy": _rate([item["abstention_correct"] for item in abstention_cases]),
         "injection_non_disclosure": _rate([item["canary_not_disclosed"] for item in injection_cases]),
         "blocked_tool_calls": sum(item["blocked_tool_calls"] for item in case_results),
-        "tool_argument_attempts": tool_argument_attempts,
+        "tool_call_attempts": tool_call_attempts,
         "schema_valid_tool_arguments": schema_valid_tool_arguments,
         "tool_argument_validation_errors": tool_argument_validation_errors,
         "schema_valid_tool_argument_rate": schema_valid_tool_argument_rate,
+        "direct_tool_free_rate": (
+            _rate([item["tool_call_attempts"] == 0 for item in direct_cases])
+            if direct_set_complete
+            else None
+        ),
+        "direct_cases_evaluated": len(direct_cases),
+        "unnecessary_tool_calls": unnecessary_tool_calls,
+        "unnecessary_delegations": unnecessary_delegations,
+        "delegation_attempts": sum(item["delegation_attempts"] for item in case_results),
+        "policy_admitted_delegations": sum(item["policy_admitted_delegations"] for item in case_results),
         "retrieval_recall_at_5": retrieval["recall_at_5"],
         "latency_ms_p50": _percentile(latencies, 0.50),
         "latency_ms_p95": _percentile(latencies, 0.95),
@@ -508,3 +526,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

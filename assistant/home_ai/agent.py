@@ -4,13 +4,13 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from httpx2 import AsyncClient
 from pydantic import ValidationError
+from httpx2 import AsyncClient
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.capabilities.abstract import RawToolArgs, ValidatedToolArgs
 from pydantic_ai.exceptions import ModelRetry
-from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.tools import ToolDefinition
@@ -58,24 +58,28 @@ class AssistantDeps:
     tool_trace: list[str] = field(default_factory=list)
     traced_call_ids: set[tuple[str, str]] = field(default_factory=set)
     blocked_tool_calls: int = 0
-    tool_argument_attempts: int = 0
+    tool_call_attempts: int = 0
     schema_valid_tool_arguments: int = 0
     tool_argument_validation_errors: int = 0
+    delegation_attempts: int = 0
 
 
 class ToolArgumentMetrics(AbstractCapability[AssistantDeps]):
     """Count tool argument validation outcomes without retaining the arguments."""
 
-    async def before_tool_validate(
+    async def after_model_request(
         self,
         ctx: RunContext[AssistantDeps],
         *,
-        call: ToolCallPart,
-        tool_def: ToolDefinition,
-        args: RawToolArgs,
-    ) -> RawToolArgs:
-        ctx.deps.tool_argument_attempts += 1
-        return args
+        request_context: Any,
+        response: ModelResponse,
+    ) -> ModelResponse:
+        for part in response.parts:
+            if isinstance(part, ToolCallPart):
+                ctx.deps.tool_call_attempts += 1
+                if part.tool_name == DELEGATE_TOOL:
+                    ctx.deps.delegation_attempts += 1
+        return response
 
     async def after_tool_validate(
         self,
@@ -106,6 +110,9 @@ def _tool_gate(ctx: RunContext[AssistantDeps], call: ToolCallInfo) -> GuardrailR
     if trace_id not in ctx.deps.traced_call_ids:
         ctx.deps.traced_call_ids.add(trace_id)
         ctx.deps.tool_trace.append(call.name)
+    if not ctx.deps.policy.allows_tool(call.name):
+        ctx.deps.blocked_tool_calls += 1
+        return GuardrailResult.block("That tool is not authorized.")
     if call.name == DELEGATE_TOOL:
         agent_name = str(call.args.get("agent_name", ""))
         if not ctx.deps.policy.allows_agent(agent_name):
@@ -117,9 +124,6 @@ def _tool_gate(ctx: RunContext[AssistantDeps], call: ToolCallInfo) -> GuardrailR
                 return GuardrailResult.block("This request has reached its specialist limit.")
             ctx.deps.delegation_call_ids.add(call.tool_call_id)
             ctx.deps.delegations_used += 1
-    if not ctx.deps.policy.allows_tool(call.name):
-        ctx.deps.blocked_tool_calls += 1
-        return GuardrailResult.block("That tool is not authorized.")
     return GuardrailResult.allow()
 
 
@@ -262,3 +266,4 @@ def sanitize_user_output(value: str) -> str:
     if len(text) > MAX_TOOL_RESULT_CHARS:
         text = text[:MAX_TOOL_RESULT_CHARS].rstrip() + "\n\n[Response shortened.]"
     return text or SAFE_FALLBACK
+
