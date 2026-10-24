@@ -109,7 +109,7 @@ class EvaluationTests(unittest.TestCase):
 
         report = json.loads(output.getvalue())
         self.assertEqual(report["mode"], "retrieval-only")
-        self.assertEqual(report["report_schema_version"], 2)
+        self.assertEqual(report["report_schema_version"], 3)
         self.assertEqual(report["run_metadata"]["model"]["revision"], "4f23d8a")
         self.assertEqual(report["dataset_sha256"], dataset_sha256(build_synthetic_dataset()))
         self.assertIn("cases_with_expected_documents", report)
