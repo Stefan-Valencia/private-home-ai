@@ -36,6 +36,22 @@ Requirements: Python 3.12 or newer, a local `llama.cpp` server build, and a comp
 
 The project does not bundle or download a model. Model weights have their own licenses, sizes, and hardware requirements. The final model and inference backend remain open until the target computer is benchmarked.
 
+## Evaluate the synthetic task set
+
+From this directory, run the retrieval baseline without starting a model:
+
+```sh
+python -m home_ai.evaluate --retrieval-only
+```
+
+To evaluate routing, citations, abstention, prompt-injection resistance, and response time, first start the loopback-only model server as above, then run:
+
+```sh
+python -m home_ai.evaluate
+```
+
+The runner uses 20 synthetic documents and 40 fixed requests. It reports per-case pass indicators and summary metrics without printing the prompts or model answers. It uses the same loopback endpoint validation and no-proxy client as the app, and never falls back to a remote model. Use `--limit N` for a shorter sample or `--timeout-seconds N` to bound each request; a partial sample reports unmeasured quality gates as incomplete. Model-specific quality results still need to be collected; the deterministic retrieval baseline alone does not measure model answer quality.
+
 ## Privacy and limits
 
 - Prompts and retrieved passages go only to an IP loopback model endpoint. HTTP proxy environment variables are ignored, health checks do not follow redirects, and remote inference endpoints are rejected.

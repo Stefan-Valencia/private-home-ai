@@ -45,15 +45,24 @@ def build_local_url_opener() -> urllib.request.OpenerDirector:
 
 
 class HomeAIService:
-    def __init__(self, settings: Settings, *, model: object | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        model: object | None = None,
+        documents: DocumentStore | None = None,
+        run_timeout_seconds: int = RUN_TIMEOUT_SECONDS,
+    ) -> None:
+        if run_timeout_seconds < 1:
+            raise ValueError("The inference timeout must be a positive integer.")
         self.settings = settings
-        settings.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         if model is None:
             self._local_http_client = build_local_http_client()
             model = build_local_model(settings, http_client=self._local_http_client)
         else:
             self._local_http_client = None
-        self.documents = DocumentStore(settings.data_dir / "documents.sqlite3")
+        self.documents = documents if documents is not None else DocumentStore(settings.data_dir / "documents.sqlite3")
+        self.run_timeout_seconds = run_timeout_seconds
         self.policy = ToolPolicy()
         self.is_fake_model = self._local_http_client is None
         self.agent = build_assistant(settings, model=model)
@@ -85,12 +94,12 @@ class HomeAIService:
             self.documents.close()
             self._closed = True
 
-    async def _run_agent(self, prompt: str) -> str:
+    async def _run_agent(self, prompt: str, deps: AssistantDeps) -> str:
         result = await self.agent.run(
             prompt,
-            deps=AssistantDeps(self.documents, self.policy),
+            deps=deps,
             usage_limits=manager_usage_limits(),
-            timeout=RUN_TIMEOUT_SECONDS,
+            timeout=self.run_timeout_seconds,
         )
         return sanitize_user_output(result.output)
 
@@ -103,7 +112,7 @@ class HomeAIService:
         except (OSError, urllib.error.URLError, TimeoutError):
             return False
 
-    def chat(self, prompt: str) -> str:
+    def _chat_with_deps(self, prompt: str) -> tuple[str, AssistantDeps]:
         prompt = prompt.strip()
         if not prompt:
             raise ValueError("Enter a question first.")
@@ -113,15 +122,24 @@ class HomeAIService:
             raise ModelUnavailable("The local model is not running. Start it on this computer and try again.")
         if not self._inference_slot.acquire(blocking=False):
             raise RuntimeError("The local model is busy. Wait for the current answer to finish.")
+        deps = AssistantDeps(self.documents, self.policy)
         try:
-            running = asyncio.run_coroutine_threadsafe(self._run_agent(prompt), self._inference_loop)
+            running = asyncio.run_coroutine_threadsafe(self._run_agent(prompt, deps), self._inference_loop)
             try:
-                return running.result(timeout=RUN_TIMEOUT_SECONDS + 1)
+                return running.result(timeout=self.run_timeout_seconds + 1), deps
             except TimeoutError as exc:
                 running.cancel()
                 raise RuntimeError("The local assistant took too long to respond. Try again.") from exc
         finally:
             self._inference_slot.release()
+
+    def chat(self, prompt: str) -> str:
+        answer, _deps = self._chat_with_deps(prompt)
+        return answer
+
+    def chat_with_trace(self, prompt: str) -> tuple[str, AssistantDeps]:
+        """Return an ephemeral tool trace for local evaluation; nothing is persisted."""
+        return self._chat_with_deps(prompt)
 
 
 class LocalHTTPServer(ThreadingHTTPServer):

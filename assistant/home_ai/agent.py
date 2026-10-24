@@ -49,19 +49,29 @@ class AssistantDeps:
     policy: ToolPolicy
     delegations_used: int = 0
     delegation_call_ids: set[str] = field(default_factory=set)
+    tool_trace: list[str] = field(default_factory=list)
+    traced_call_ids: set[tuple[str, str]] = field(default_factory=set)
+    blocked_tool_calls: int = 0
 
 
 def _tool_gate(ctx: RunContext[AssistantDeps], call: ToolCallInfo) -> GuardrailResult:
+    trace_id = (call.name, call.tool_call_id)
+    if trace_id not in ctx.deps.traced_call_ids:
+        ctx.deps.traced_call_ids.add(trace_id)
+        ctx.deps.tool_trace.append(call.name)
     if call.name == DELEGATE_TOOL:
         agent_name = str(call.args.get("agent_name", ""))
         if not ctx.deps.policy.allows_agent(agent_name):
+            ctx.deps.blocked_tool_calls += 1
             return GuardrailResult.block("That specialist is not authorized for this request.")
         if call.tool_call_id not in ctx.deps.delegation_call_ids:
             if ctx.deps.delegations_used >= MAX_DELEGATIONS:
+                ctx.deps.blocked_tool_calls += 1
                 return GuardrailResult.block("This request has reached its specialist limit.")
             ctx.deps.delegation_call_ids.add(call.tool_call_id)
             ctx.deps.delegations_used += 1
     if not ctx.deps.policy.allows_tool(call.name):
+        ctx.deps.blocked_tool_calls += 1
         return GuardrailResult.block("That tool is not authorized.")
     return GuardrailResult.allow()
 

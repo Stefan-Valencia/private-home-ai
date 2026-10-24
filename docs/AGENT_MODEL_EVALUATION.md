@@ -42,7 +42,7 @@ Model size alone is not a selection criterion. Quantization, context size, runti
 
 ## Evaluation plan
 
-Create a fixed synthetic set of 20–30 documents and 40–50 requests. Include direct questions, paraphrases, questions spanning multiple documents, unsupported questions, ambiguous requests, prompt-injection text embedded in documents, and requests that should not invoke a tool.
+The initial fixed evaluation set is implemented in `assistant/home_ai/evaluate.py`: 20 synthetic documents and 40 requests covering single-document and multi-document retrieval, unsupported questions, direct answers, simulated home status, and prompt-injection text embedded in retrieved documents. It contains no user data. The deterministic retrieval baseline can run without a model; the full evaluator uses only the configured loopback model endpoint and reports metrics without printing prompts or answers.
 
 Proposed initial quality gates:
 
@@ -59,6 +59,8 @@ Compare harness/model pairs on those gates plus:
 - Median and tail response time, peak memory, and stability under a fixed context and request limit.
 
 These are starting acceptance thresholds for the software slice. Record any threshold change with its measured baseline and reason.
+
+The local FTS5 baseline returned all expected documents in the top five for its 28 answerable retrieval cases (100% Recall@5), exceeding the proposed 90% retrieval threshold on this synthetic set. This does not measure generated answer correctness. The full routing, citation, abstention, injection, and latency evaluation remains pending until a local model is available.
 
 Use a deterministic provider for app and policy tests. Include a denied-tool fixture that records handler execution and assert the policy gate rejects it before the handler runs. Use the same synthetic prompts and tool permissions for each local model. Sweep practical context sizes, including 8K, 32K, 64K, and 128K when feasible. Record peak unified-memory use including model weights and KV cache; time to first token and end-to-end latency at p50 and p95; generation tokens/second; and, on target hardware, sustained power and temperatures. Record warm and cold runs, prompt token count, sampling settings, model revision and quantization, chat template/tool parser, runtime build and flags, hardware, OS/kernel, and all measurements. Do not present vendor benchmarks as our own results or set a default based only on parameter count.
 

@@ -37,7 +37,7 @@ Exit evidence: authorized and unauthorized pairing cases are documented and test
 
 Exit evidence: an end-to-end local chat and document Q&A demo that works without internet access after setup.
 
-Current status: the software-in-loop implementation is in `assistant/`. Deterministic tests exercise direct answering, manager-to-specialist document search, citations, upload/removal, local-origin protections, and bounded PDF expansion. It has not yet been run with real model weights, so offline model quality and latency are unverified. The index uses lexical FTS5 search; semantic embeddings, comparison with a second AMD-compatible runtime, and target-hardware measurements remain unfinished.
+Current status: the software-in-loop implementation is in `assistant/`. Deterministic tests exercise direct answering, manager-to-specialist document search, citations, upload/removal, local-origin protections, bounded PDF expansion, and the evaluation report logic. The fixed synthetic evaluation set contains 20 documents and 40 requests. Its 28 answerable retrieval cases achieved 100% Recall@5 with the lexical FTS5 baseline, above the proposed 90% threshold. This is a project-authored synthetic baseline, not a real-model quality result. The full evaluation has not yet run with model weights, so route quality, citation generation, abstention, injection resistance, and latency remain unmeasured. Semantic embeddings, comparison with a second AMD-compatible runtime, and target-hardware measurements also remain unfinished.
 
 ## Milestone 4: Target appliance validation
 - Install the chosen Linux version on the selected EVO-X3 unit.
