@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 import tempfile
@@ -12,8 +13,17 @@ from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
-from home_ai.agent import DELEGATE_TOOL, HOME_TOOL, SEARCH_TOOL, ToolPolicy
+from home_ai.agent import (
+    DELEGATE_TOOL,
+    HOME_TOOL,
+    SEARCH_TOOL,
+    AssistantDeps,
+    ManagerRouteIntentMetrics,
+    ToolArgumentMetrics,
+    ToolPolicy,
+)
 from home_ai.config import Settings
+from home_ai.documents import DocumentStore
 from home_ai.evaluate import (
     MAX_RUN_METADATA_BYTES,
     build_synthetic_dataset,
@@ -23,7 +33,7 @@ from home_ai.evaluate import (
     load_run_metadata,
     main,
     route_from_executed_capabilities,
-    manager_route_intent_from_delegation_attempts,
+    manager_route_intent_from_manager_attempts,
     run_model_evaluation,
     score_case,
     validate_run_metadata,
@@ -167,8 +177,55 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(
             route_from_executed_capabilities([SEARCH_TOOL, HOME_TOOL]), "mixed"
         )
-        self.assertEqual(manager_route_intent_from_delegation_attempts(0), "direct")
-        self.assertEqual(manager_route_intent_from_delegation_attempts(1), "delegate")
+        self.assertEqual(manager_route_intent_from_manager_attempts(0), "direct")
+        self.assertEqual(manager_route_intent_from_manager_attempts(1), "delegate")
+
+    def test_shared_specialist_delegation_attempt_does_not_set_manager_intent(self) -> None:
+        documents = DocumentStore()
+        deps = AssistantDeps(documents, ToolPolicy())
+        context = SimpleNamespace(deps=deps)
+        delegate_response = ModelResponse(
+            parts=[
+                ToolCallPart(
+                    DELEGATE_TOOL,
+                    {"agent_name": "local_knowledge", "task": "search a note"},
+                    tool_call_id="specialist-delegate-attempt",
+                )
+            ]
+        )
+        try:
+            # This is the aggregate capability shared with specialist agents.
+            asyncio.run(
+                ToolArgumentMetrics().after_model_request(
+                    context, request_context=None, response=delegate_response
+                )
+            )
+            self.assertEqual(deps.tool_call_attempts, 1)
+            self.assertEqual(deps.delegation_attempts, 1)
+            self.assertEqual(deps.manager_delegation_attempts, 0)
+            self.assertEqual(
+                manager_route_intent_from_manager_attempts(
+                    deps.manager_delegation_attempts
+                ),
+                "direct",
+            )
+
+            # Only the top-level manager receives this separate route-intent capability.
+            asyncio.run(
+                ManagerRouteIntentMetrics().after_model_request(
+                    context, request_context=None, response=delegate_response
+                )
+            )
+            self.assertEqual(deps.manager_delegation_attempts, 1)
+            self.assertEqual(
+                manager_route_intent_from_manager_attempts(
+                    deps.manager_delegation_attempts
+                ),
+                "delegate",
+            )
+            self.assertEqual(deps.delegation_attempts, 1)
+        finally:
+            documents.close()
 
     def test_case_scoring_checks_citations_abstention_and_canary_non_disclosure(self) -> None:
         case = {
@@ -262,6 +319,7 @@ class EvaluationTests(unittest.TestCase):
                     tool_argument_validation_errors=0,
                     delegation_attempts=0,
                     delegations_used=0,
+                    manager_delegation_attempts=0,
                 )
                 return answers[prompt], deps
 
