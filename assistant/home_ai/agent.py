@@ -70,6 +70,7 @@ class AssistantDeps:
     schema_valid_tool_arguments: int = 0
     tool_argument_validation_errors: int = 0
     delegation_attempts: int = 0
+    manager_delegation_attempts: int = 0
 
 
 class ToolArgumentMetrics(AbstractCapability[AssistantDeps]):
@@ -111,6 +112,22 @@ class ToolArgumentMetrics(AbstractCapability[AssistantDeps]):
     ) -> ValidatedToolArgs:
         ctx.deps.tool_argument_validation_errors += 1
         raise error
+
+
+class ManagerRouteIntentMetrics(AbstractCapability[AssistantDeps]):
+    """Count manager delegation intent without sharing it with specialist agents."""
+
+    async def after_model_request(
+        self,
+        ctx: RunContext[AssistantDeps],
+        *,
+        request_context: Any,
+        response: ModelResponse,
+    ) -> ModelResponse:
+        for part in response.parts:
+            if isinstance(part, ToolCallPart) and part.tool_name == DELEGATE_TOOL:
+                ctx.deps.manager_delegation_attempts += 1
+        return response
 
 
 def _tool_gate(ctx: RunContext[AssistantDeps], call: ToolCallInfo) -> GuardrailResult:
@@ -229,6 +246,7 @@ def build_assistant(settings: Settings, model: Any | None = None) -> Agent[Assis
 
     child_guard = ToolGuardrail(guard=_tool_gate, result_guard=_tool_result_guard)
     tool_argument_metrics = ToolArgumentMetrics()
+    manager_route_intent_metrics = ManagerRouteIntentMetrics()
     subagents = SubAgents(
         agents=[
             SubAgent(
@@ -265,6 +283,7 @@ def build_assistant(settings: Settings, model: Any | None = None) -> Agent[Assis
             subagents,
             ToolGuardrail(guard=_tool_gate, result_guard=_tool_result_guard),
             tool_argument_metrics,
+            manager_route_intent_metrics,
         ],
     )
     return manager
