@@ -171,6 +171,10 @@ class DocumentStore:
                 text = content.decode("utf-8-sig")
             except UnicodeDecodeError as exc:
                 raise DocumentError("Text files must be UTF-8 encoded.") from exc
+            if len(text) > MAX_EXTRACTED_CHARACTERS:
+                raise DocumentError(
+                    f"Text files are limited to {MAX_EXTRACTED_CHARACTERS:,} characters."
+                )
             page_text = [text]
         elif suffix == ".pdf":
             page_text = _extract_pdf(content)

@@ -5,7 +5,12 @@ import unittest
 import zlib
 from pathlib import Path
 
-from home_ai.documents import MAX_PAGE_CONTENT_BYTES, DocumentError, DocumentStore
+from home_ai.documents import (
+    MAX_EXTRACTED_CHARACTERS,
+    MAX_PAGE_CONTENT_BYTES,
+    DocumentError,
+    DocumentStore,
+)
 
 
 def _pdf_with_stream(
@@ -93,6 +98,20 @@ class DocumentStoreTests(unittest.TestCase):
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0].citation, "[home-notes.txt, p. 1]")
         self.assertIn("six months", matches[0].text)
+
+    def test_text_at_extracted_character_limit_is_indexed(self) -> None:
+        summary = self.store.add_file("limit.txt", b"x" * MAX_EXTRACTED_CHARACTERS)
+
+        self.assertEqual(summary.pages, 1)
+        self.assertTrue(summary.passages > 0)
+        self.assertEqual(self.store.list_documents(), [summary])
+
+    def test_text_over_extracted_character_limit_is_rejected_before_indexing(self) -> None:
+        with self.assertRaisesRegex(DocumentError, "500,000 characters"):
+            self.store.add_file("over-limit.txt", b"x" * (MAX_EXTRACTED_CHARACTERS + 1))
+
+        self.assertEqual(self.store.list_documents(), [])
+        self.assertEqual(self.store.search("x"), [])
 
     def test_pdf_ingest_cites_source_page(self) -> None:
         self.store.add_file("manual.pdf", _one_page_pdf("The water shutoff valve is in the basement."))

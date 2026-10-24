@@ -61,7 +61,7 @@ The runner uses 20 synthetic documents and 40 fixed requests. It reports per-cas
 - The SQLite index is plaintext and is not encrypted at rest. Use synthetic or non-sensitive documents on a shared or untrusted computer; storage encryption and recovery are later milestones.
 - Use **Remove** to delete a document's extracted text from the local index. The prototype does not retain a separate copy of the uploaded source file.
 - Retrieval is local keyword search (SQLite FTS5), not semantic embeddings. Answers should cite `[filename, p. N]`; verify important details against the source.
-- Uploads are limited to 10 MiB, 100 PDF pages, 2 MiB of decoded page content per page, 8 MiB across the whole PDF, and 500,000 extracted characters. Only UTF-8 text and selectable-text PDFs are supported. Scanned files, OCR, encrypted PDFs, and office documents are not supported.
+- Uploads are limited to 10 MiB, 100 PDF pages, 2 MiB of decoded page content per page, 8 MiB across the whole PDF, and 500,000 extracted characters per file for both UTF-8 text and PDF text. Only UTF-8 text and selectable-text PDFs are supported. Scanned files, OCR, encrypted PDFs, and office documents are not supported.
 - Incomplete HTTP request bodies have a ten-second total read deadline so a stalled upload cannot hold server shutdown indefinitely.
 - Model output and document contents are untrusted. The available tools are limited to document search and simulated home status; no shell, internet, or device-control tools are exposed.
 - Unexpected model or backend failures return a generic chat error; only explicitly typed, user-safe availability, busy, timeout, and usage-limit messages are shown.
