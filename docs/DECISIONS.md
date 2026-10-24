@@ -55,3 +55,10 @@ The local index uses SQLite FTS5 keyword search and source-page citations. It do
 Status: accepted for software-in-loop development only.
 
 Extracted document text is stored in a local SQLite database. POSIX systems restrict the app data directory and database file to the current user; Windows inherits the per-user data directory ACL. The index is plaintext and is not encrypted at rest. Keep the service bound to loopback, disclose this limitation, and design storage encryption and recovery before alpha or shared-device use.
+
+### Trusted-device pairing protocol and credential model
+Status: open; no protocol or browser/native product choice has been approved.
+
+The threat model and options are recorded in [THREAT_MODEL.md](THREAT_MODEL.md). A physical authorization action is necessary but does not by itself authenticate the appliance or enrolling device. Before real pairing is implemented, decide whether the first usable product must work in browsers alone or may require a native companion app, then review the complete trust bootstrap, authenticated transport, credential storage, expiry, revocation, reset, and recovery flow. Use maintained, reviewed cryptographic components; do not create a custom handshake. RFC 9846 specifies current TLS 1.3 behavior. RFC 9383 describes SPAKE2+ but states that publication does not imply IETF/IRTF endorsement. Evaluate implementations and platform fit rather than treating either reference as a product decision.
+
+Until that decision and review, software work may test only a conspicuously labeled lifecycle simulation with synthetic identifiers. It must not generate real device credentials or claim secure pairing. Revisit after browser/native constraints, the implementation library, and recovery semantics are agreed and the target device can exercise physical authorization.
