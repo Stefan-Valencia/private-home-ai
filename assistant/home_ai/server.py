@@ -13,7 +13,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
+)
 
 from .agent import (
     AssistantDeps,
@@ -78,6 +85,13 @@ def build_chat_message_history(history: object, prompt: str) -> list[ModelMessag
             messages.append(ModelResponse(parts=[TextPart(content=content)]))
 
     return messages
+
+
+def _usage_limit_message(error: UsageLimitExceeded) -> str:
+    details = str(error).casefold()
+    if "input_tokens_limit" in details or "total_tokens_limit" in details:
+        return "This conversation reached the local model's context limit. Start a new chat or shorten your question."
+    return "The local model's usage limit was reached. Start a new chat or try again with a shorter request."
 
 
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -146,13 +160,16 @@ class HomeAIService:
         deps: AssistantDeps,
         message_history: Sequence[ModelMessage],
     ) -> str:
-        result = await self.agent.run(
-            prompt,
-            deps=deps,
-            message_history=message_history,
-            usage_limits=manager_usage_limits(),
-            timeout=self.run_timeout_seconds,
-        )
+        try:
+            result = await self.agent.run(
+                prompt,
+                deps=deps,
+                message_history=message_history,
+                usage_limits=manager_usage_limits(),
+                timeout=self.run_timeout_seconds,
+            )
+        except UsageLimitExceeded as exc:
+            raise RuntimeError(_usage_limit_message(exc)) from exc
         return sanitize_user_output(result.output)
 
     def inference_ready(self) -> bool:

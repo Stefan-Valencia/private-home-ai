@@ -8,7 +8,9 @@ from http.client import HTTPConnection
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
 from home_ai.config import Settings
@@ -20,6 +22,7 @@ from home_ai.server import (
     LocalHTTPServer,
     WEB_DIR,
     build_chat_message_history,
+    _usage_limit_message,
 )
 
 
@@ -84,6 +87,61 @@ class ChatHistoryValidationTests(unittest.TestCase):
         self.assertIn("conversationHistory = []", app)
         self.assertNotIn("localStorage", app)
         self.assertNotIn("sessionStorage", app)
+
+    def test_model_usage_limits_return_actionable_messages(self) -> None:
+        context_error = UsageLimitExceeded("The next request would exceed the input_tokens_limit")
+        message = _usage_limit_message(context_error)
+        self.assertIn("context limit", message)
+        self.assertIn("Start a new chat or shorten your question", message)
+
+        tool_error = UsageLimitExceeded("The next request would exceed the tool_calls_limit")
+        self.assertIn("usage limit was reached", _usage_limit_message(tool_error))
+
+
+class LocalModelHistoryTests(unittest.TestCase):
+    def test_prior_turns_reach_the_pinned_agent_model(self) -> None:
+        observed: list[list[ModelMessage]] = []
+
+        def fake_model(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            observed.append(messages)
+            return ModelResponse(parts=[TextPart("The sample color was amber.")])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            service = HomeAIService(
+                Settings(data_dir=Path(temporary) / "data"),
+                model=FunctionModel(fake_model),
+            )
+            try:
+                history = build_chat_message_history(
+                    [
+                        {"role": "user", "content": "The sample color is amber."},
+                        {"role": "assistant", "content": "I will remember amber."},
+                    ],
+                    "What color did I mention?",
+                )
+                answer = service.chat("What color did I mention?", message_history=history)
+            finally:
+                service.close()
+
+        self.assertEqual(answer, "The sample color was amber.")
+        self.assertEqual(len(observed), 1)
+        user_text = [
+            part.content
+            for message in observed[0]
+            if isinstance(message, ModelRequest)
+            for part in message.parts
+            if isinstance(part, UserPromptPart)
+        ]
+        assistant_text = [
+            part.content
+            for message in observed[0]
+            if isinstance(message, ModelResponse)
+            for part in message.parts
+            if isinstance(part, TextPart)
+        ]
+        self.assertIn("The sample color is amber.", user_text)
+        self.assertIn("I will remember amber.", assistant_text)
+        self.assertIn("What color did I mention?", user_text)
 
 
 class LocalAPITests(unittest.TestCase):
