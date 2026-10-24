@@ -281,7 +281,8 @@ class EvaluationTests(unittest.TestCase):
         self.assertNotIn("The sample color is amber.", json.dumps(report))
         self.assertNotIn("What color did I mention?", json.dumps(report))
 
-    def test_direct_gate_counts_invalid_and_unknown_tool_calls(self) -> None:        dataset = build_synthetic_dataset()
+    def test_direct_gate_counts_invalid_and_unknown_tool_calls(self) -> None:
+        dataset = build_synthetic_dataset()
         dataset["cases"] = [case for case in dataset["cases"] if case["id"].startswith("direct_")]
         turns = 0
 
