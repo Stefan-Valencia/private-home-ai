@@ -20,7 +20,12 @@ def default_data_dir() -> Path:
 
 
 def validate_local_endpoint(value: str) -> str:
-    parsed = urlsplit(value)
+    if not isinstance(value, str):
+        raise ConfigurationError("Inference endpoint must use a loopback IP address.")
+    try:
+        parsed = urlsplit(value)
+    except ValueError as exc:
+        raise ConfigurationError("Inference endpoint is invalid.") from exc
     if parsed.scheme != "http" or parsed.username or parsed.password:
         raise ConfigurationError("Inference must use an unauthenticated local HTTP endpoint.")
     if parsed.query or parsed.fragment or not parsed.path.rstrip("/").endswith("/v1"):
@@ -40,6 +45,24 @@ def validate_local_endpoint(value: str) -> str:
     return value.rstrip("/")
 
 
+def validate_loopback_bind_host(value: str) -> str:
+    if not isinstance(value, str):
+        raise ConfigurationError("HOME_AI_HOST must be a loopback IP address.")
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as exc:
+        raise ConfigurationError("HOME_AI_HOST must be a loopback IP address.") from exc
+    if not address.is_loopback:
+        raise ConfigurationError("The unauthenticated prototype may bind only to loopback.")
+    return value
+
+
+def validate_port(value: int) -> int:
+    if type(value) is not int or not 1 <= value <= 65535:
+        raise ConfigurationError("HOME_AI_PORT must be between 1 and 65535.")
+    return value
+
+
 @dataclass(frozen=True)
 class Settings:
     inference_endpoint: str = "http://127.0.0.1:8080/v1"
@@ -48,23 +71,20 @@ class Settings:
     port: int = 4174
     data_dir: Path = field(default_factory=default_data_dir)
 
+    def __post_init__(self) -> None:
+        endpoint = validate_local_endpoint(self.inference_endpoint)
+        object.__setattr__(self, "inference_endpoint", endpoint)
+        validate_loopback_bind_host(self.bind_host)
+        validate_port(self.port)
+
     @classmethod
     def from_env(cls) -> Settings:
-        endpoint = validate_local_endpoint(
-            os.environ.get("HOME_AI_MODEL_ENDPOINT", "http://127.0.0.1:8080/v1")
-        )
+        endpoint = os.environ.get("HOME_AI_MODEL_ENDPOINT", "http://127.0.0.1:8080/v1")
         bind_host = os.environ.get("HOME_AI_HOST", "127.0.0.1")
-        try:
-            if not ipaddress.ip_address(bind_host).is_loopback:
-                raise ConfigurationError("The unauthenticated prototype may bind only to loopback.")
-        except ValueError as exc:
-            raise ConfigurationError("HOME_AI_HOST must be a loopback IP address.") from exc
         try:
             port = int(os.environ.get("HOME_AI_PORT", "4174"))
         except ValueError as exc:
             raise ConfigurationError("HOME_AI_PORT must be an integer.") from exc
-        if not 1 <= port <= 65535:
-            raise ConfigurationError("HOME_AI_PORT must be between 1 and 65535.")
         return cls(
             inference_endpoint=endpoint,
             model_name=os.environ.get("HOME_AI_MODEL_NAME", "local-model"),
