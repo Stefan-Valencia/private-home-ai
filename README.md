@@ -11,7 +11,7 @@ A local-first home AI appliance designed to make private, on-device AI as simple
 
 ## Project status
 
-The repository now contains two clearly labeled software-only prototypes: first-boot setup simulation and a local AI chat/document service. Neither is production-ready, neither controls physical devices, and no production security claims are made. The target appliance must be validated separately.
+The repository now contains three clearly labeled software-only prototypes: first-boot setup, an in-memory device-pairing lifecycle, and a local AI chat/document service. They do not control physical devices, create real device credentials, or make production security claims. The target appliance must be validated separately.
 
 The current hardware evaluation target is an AMD Ryzen AI Max+ 395 system with 128 GB unified memory. Hardware compatibility, model speed, thermals, network setup, recovery, and security behavior remain to be verified on the selected device.
 
@@ -31,6 +31,6 @@ The repository includes CC0 1.0 Universal in LICENSE. Model weights, datasets, a
 
 ## Run the onboarding simulation
 
-From this directory, run `python -m http.server 4173` and open `http://localhost:4173` in a browser. The current setup flow is a UI and state-machine simulation only: it does not enable Wi-Fi, generate cryptographic keys, pair a device, or accept network credentials.
+From this directory, run `python -m http.server 4173` and open `http://localhost:4173` in a browser. The setup flow and device-management screen are simulations only: they do not enable Wi-Fi, authenticate or pair devices, create credentials, or accept network credentials. After finishing the setup walkthrough, choose **Explore device management simulation** to try a temporary demo window, add or remove synthetic devices, see expiry and retry behavior, and reset the in-memory demo state. Refreshing the page clears that state.
 
 Run the state-machine checks with `node --test`.
