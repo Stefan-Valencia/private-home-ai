@@ -12,7 +12,7 @@ from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
-from home_ai.agent import DELEGATE_TOOL, HOME_TOOL, SEARCH_TOOL
+from home_ai.agent import DELEGATE_TOOL, HOME_TOOL, SEARCH_TOOL, ToolPolicy
 from home_ai.config import Settings
 from home_ai.evaluate import (
     MAX_RUN_METADATA_BYTES,
@@ -119,6 +119,7 @@ class EvaluationTests(unittest.TestCase):
     def test_overall_quality_gate_requires_answer_terms_and_complete_metrics(self) -> None:
         metrics = {
             "route_accuracy": 1.0,
+            "manager_route_intent_accuracy": 1.0,
             "citation_accuracy": 1.0,
             "required_term_accuracy": 0.89,
             "abstention_accuracy": 1.0,
