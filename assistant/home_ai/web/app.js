@@ -77,6 +77,7 @@ async function loadDocuments({ focusDocumentId = null, restoreRemovalFocus = fal
         } catch (error) {
           uploadStatus.textContent = error.message || "The document could not be removed.";
           remove.disabled = false;
+          remove.focus();
         }
       });
       const details = document.createElement("div");
