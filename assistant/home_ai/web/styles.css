@@ -17,6 +17,7 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
 button, textarea { font: inherit; }
+:focus-visible { outline: 3px solid #3f6b4f; outline-offset: 2px; }
 .shell { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
 .topbar { height: 76px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
 .brand { display: inline-flex; gap: 10px; align-items: center; color: var(--ink); font-size: 15px; font-weight: 700; text-decoration: none; }
@@ -50,8 +51,8 @@ h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
 .message-label { display: block; margin-bottom: 5px; color: var(--green-deep); font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .07em; }
 .message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.55; }
 .composer { padding: 14px; border-top: 1px solid #edf0ee; }
-.composer textarea { display: block; width: 100%; min-height: 67px; resize: vertical; border: 1px solid #dfe6e2; border-radius: 10px; padding: 11px 12px; color: var(--ink); background: #fcfdfc; outline: none; font-size: 13px; line-height: 1.5; }
-.composer textarea:focus { border-color: #76ad91; box-shadow: 0 0 0 3px #e6f2eb; }
+.composer textarea { display: block; width: 100%; min-height: 67px; resize: vertical; border: 1px solid #dfe6e2; border-radius: 10px; padding: 11px 12px; color: var(--ink); background: #fcfdfc; font-size: 13px; line-height: 1.5; }
+.composer textarea:focus-visible { border-color: #3f6b4f; box-shadow: 0 0 0 3px #e6f2eb; }
 .composer-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
 .hint { color: #5e6d66; font-size: 11px; }
 button, .upload-button { border: 0; border-radius: 8px; padding: 10px 14px; color: white; background: var(--green); font-size: 12px; font-weight: 700; cursor: pointer; }
@@ -62,7 +63,7 @@ button:disabled { cursor: wait; opacity: .65; }
 .document-count { display: grid; place-items: center; min-width: 26px; height: 26px; border-radius: 8px; padding: 0 7px; background: #f0f4f1; color: #50665c; font-size: 11px; font-weight: 700; }
 .document-copy { margin: 12px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.55; }
 .upload-button { display: inline-block; padding: 9px 11px; font-size: 11px; }
-#document-file:focus-visible + .upload-button { outline: 3px solid #76ad91; outline-offset: 3px; }
+#document-file:focus-visible + .upload-button { outline: 3px solid #3f6b4f; outline-offset: 3px; }
 .upload-status { min-height: 18px; margin: 10px 0 0; color: #61736a; font-size: 11px; line-height: 1.45; }
 .document-list { list-style: none; margin: 9px 0 0; padding: 0; }
 .document-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #edf0ee; }

@@ -39,7 +39,7 @@ async function loadStatus() {
   }
 }
 
-async function loadDocuments() {
+async function loadDocuments({ focusDocumentId = null, restoreRemovalFocus = false } = {}) {
   try {
     const response = await fetch("/api/documents", { cache: "no-store" });
     if (!response.ok) throw new Error("Could not load documents.");
@@ -58,9 +58,14 @@ async function loadDocuments() {
       remove.className = "remove-button";
       remove.type = "button";
       remove.textContent = "Remove";
+      remove.dataset.documentId = doc.document_id;
       remove.setAttribute("aria-label", `Remove ${doc.filename} from the local index`);
       remove.addEventListener("click", async () => {
         remove.disabled = true;
+        const removeButtons = Array.from(documentList.querySelectorAll(".remove-button"));
+        const buttonIndex = removeButtons.indexOf(remove);
+        const nextButton = removeButtons[buttonIndex + 1] || removeButtons[buttonIndex - 1];
+        const nextDocumentId = nextButton?.dataset.documentId || null;
         try {
           const response = await fetch(`/api/documents/${encodeURIComponent(doc.document_id)}`, {
             method: "DELETE",
@@ -68,7 +73,7 @@ async function loadDocuments() {
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || "The document could not be removed.");
           uploadStatus.textContent = `${doc.filename} removed from the local index.`;
-          await loadDocuments();
+          await loadDocuments({ focusDocumentId: nextDocumentId, restoreRemovalFocus: true });
         } catch (error) {
           uploadStatus.textContent = error.message || "The document could not be removed.";
           remove.disabled = false;
@@ -86,8 +91,14 @@ async function loadDocuments() {
       empty.textContent = "No documents added yet.";
       documentList.append(empty);
     }
+    if (restoreRemovalFocus) {
+      const nextButton = Array.from(documentList.querySelectorAll(".remove-button"))
+        .find((button) => button.dataset.documentId === focusDocumentId);
+      (nextButton || fileInput).focus();
+    }
   } catch {
     uploadStatus.textContent = "The document list could not be loaded.";
+    if (restoreRemovalFocus) fileInput.focus();
   }
 }
 
