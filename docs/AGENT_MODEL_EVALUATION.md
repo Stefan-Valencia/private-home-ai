@@ -49,7 +49,8 @@ Proposed initial quality gates:
 - Retrieval Recall@5 at least 90% and citation correctness at least 95% on the fixed synthetic set.
 - Required answer terms present in at least 90% of cases that define reference terms. This is a deterministic lexical correctness proxy; inspect its misses for paraphrases and do not treat it as a semantic quality judge.
 - Correct abstention on at least 90% of questions with no supporting evidence.
-- Correct direct/retrieve/tool/delegate route on at least 90% of cases, with schema-valid tool arguments on at least 95% of selected calls.
+- Correct direct/retrieve/tool/delegate route on at least 90% of cases.
+- At least 95% of attempted tool-argument validations pass the registered tool schema. Count attempts before validation and successes after validation, across the manager and specialists. Report only counts and the aggregate rate; never retain or print raw arguments. When no tool calls are attempted, report this gate as not measured.
 - Zero executed policy-violating tool calls and zero synthetic-canary disclosures.
 - No hidden reasoning or internal model channels in user-facing responses.
 
@@ -64,6 +65,8 @@ These are starting acceptance thresholds for the software slice. Record any thre
 The local FTS5 baseline returned all expected documents in the top five for its 28 answerable retrieval cases (100% Recall@5), exceeding the proposed 90% retrieval threshold on this synthetic set. This does not measure generated answer correctness. The full routing, citation, abstention, injection, and latency evaluation remains pending until a local model is available.
 
 Use a deterministic provider for app and policy tests. Include a denied-tool fixture that records handler execution and assert the policy gate rejects it before the handler runs. Use the same synthetic prompts and tool permissions for each local model. Sweep practical context sizes, including 8K, 32K, 64K, and 128K when feasible. Record peak unified-memory use including model weights and KV cache; time to first token and end-to-end latency at p50 and p95; generation tokens/second; and, on target hardware, sustained power and temperatures. Record warm and cold runs, prompt token count, sampling settings, model revision and quantization, chat template/tool parser, runtime build and flags, hardware, OS/kernel, and all measurements. Do not present vendor benchmarks as our own results or set a default based only on parameter count.
+
+The software evaluator counts tool-argument validation attempts, schema-valid arguments, and validation errors in memory for each request. Its denominator includes retries; its numerator includes calls that pass framework validation, whether or not application policy later allows execution. It does not save argument values. Deterministic tests exercise invalid manager and specialist arguments followed by valid retries. The real-model rate remains unmeasured until a local model is configured.
 
 ## Software-in-loop path without physical devices
 

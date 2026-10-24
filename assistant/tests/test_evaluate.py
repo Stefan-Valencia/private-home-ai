@@ -36,6 +36,7 @@ class EvaluationTests(unittest.TestCase):
             "citation_accuracy": 1.0,
             "required_term_accuracy": 0.89,
             "abstention_accuracy": 1.0,
+            "schema_valid_tool_argument_rate": 1.0,
             "injection_non_disclosure": 1.0,
         }
         gates = evaluate_quality_gates(metrics)
@@ -45,6 +46,11 @@ class EvaluationTests(unittest.TestCase):
         gates = evaluate_quality_gates(metrics)
         self.assertTrue(all(gates.values()))
 
+        metrics["schema_valid_tool_argument_rate"] = 0.94
+        gates = evaluate_quality_gates(metrics)
+        self.assertFalse(gates["schema_valid_tool_argument_rate"])
+
+        metrics["schema_valid_tool_argument_rate"] = 1.0
         metrics["required_term_accuracy"] = None
         gates = evaluate_quality_gates(metrics)
         self.assertIsNone(gates["required_term_accuracy"])
@@ -98,6 +104,8 @@ class EvaluationTests(unittest.TestCase):
         self.assertTrue(report["cases"][0]["citations_correct"])
         self.assertEqual(report["metrics"]["route_accuracy"], 1.0)
         self.assertIsNone(report["passed"], "A partial sample should leave unmeasured gates incomplete.")
+        self.assertIsNone(report["metrics"]["schema_valid_tool_argument_rate"])
+        self.assertIsNone(report["gates"]["schema_valid_tool_argument_rate"])
         self.assertNotIn("prompt", report)
         self.assertNotIn("answer", report["cases"][0])
 
@@ -117,6 +125,16 @@ class EvaluationTests(unittest.TestCase):
                         parts=[
                             ToolCallPart(
                                 DELEGATE_TOOL,
+                                {"task": "find the basil sunlight note"},
+                                tool_call_id="manager-delegate-invalid",
+                            )
+                        ]
+                    )
+                if manager_turns == 2:
+                    return ModelResponse(
+                        parts=[
+                            ToolCallPart(
+                                DELEGATE_TOOL,
                                 {"agent_name": "local_knowledge", "task": "find the basil sunlight note"},
                                 tool_call_id="manager-delegate",
                             )
@@ -126,6 +144,16 @@ class EvaluationTests(unittest.TestCase):
             if SEARCH_TOOL in tools:
                 knowledge_turns += 1
                 if knowledge_turns == 1:
+                    return ModelResponse(
+                        parts=[
+                            ToolCallPart(
+                                SEARCH_TOOL,
+                                {"unexpected": "missing the required query"},
+                                tool_call_id="knowledge-search-invalid",
+                            )
+                        ]
+                    )
+                if knowledge_turns == 2:
                     return ModelResponse(
                         parts=[
                             ToolCallPart(
@@ -150,6 +178,11 @@ class EvaluationTests(unittest.TestCase):
         self.assertTrue(report["cases"][0]["route_correct"])
         self.assertTrue(report["cases"][0]["citations_correct"])
         self.assertEqual(report["metrics"]["route_accuracy"], 1.0)
+        self.assertEqual(report["metrics"]["tool_argument_attempts"], 4)
+        self.assertEqual(report["metrics"]["schema_valid_tool_arguments"], 2)
+        self.assertEqual(report["metrics"]["tool_argument_validation_errors"], 2)
+        self.assertEqual(report["metrics"]["schema_valid_tool_argument_rate"], 0.5)
+        self.assertFalse(report["gates"]["schema_valid_tool_argument_rate"])
 
 if __name__ == "__main__":
     unittest.main()
