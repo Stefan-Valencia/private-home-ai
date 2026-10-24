@@ -100,11 +100,22 @@ test("an unavailable demo network returns to selection and can be retried", () =
   }
 
   assert.equal(state.stage, "wifi");
+  assert.equal(state.networkConnected, false);
+  assert.equal(state.accessPoint, "simulated");
   assert.match(state.connectionError, /demo router is unavailable/i);
+  assert.throws(
+    () => transition(state, { type: "SIMULATE_NETWORK_CONNECTED" }),
+    /not allowed from stage wifi/,
+  );
 
   state = transition(state, { type: "USE_TEST_NETWORK" });
   assert.equal(state.stage, "connecting");
   assert.equal(state.connectionError, null);
+
+  state = transition(state, { type: "SIMULATE_NETWORK_CONNECTED" });
+  assert.equal(state.stage, "ready");
+  assert.equal(state.networkConnected, true);
+  assert.equal(state.accessPoint, "closed");
 });
 
 test("reset clears setup state", () => {
