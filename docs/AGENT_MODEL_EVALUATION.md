@@ -71,6 +71,10 @@ The software evaluator counts model-emitted function tool calls before name reso
 
 For cases labeled `direct`, every model-emitted function tool call (including an invalid call that is retried or an unknown tool name) is considered unnecessary. The direct-tool-free rate is N/A unless all four fixed direct case IDs are present in the sample. Reports separate delegation attempts from policy-admitted delegation slots; the latter means the call passed the tool and specialist allowlists and consumed the per-request budget, not that the specialist completed successfully.
 
+### Reproducible run manifests
+
+Pass an optional JSON manifest with python -m home_ai.evaluate --metadata-file run-metadata.json. Both retrieval-only and local-model reports include a report schema version, a SHA-256 digest of the exact dataset, and a normalized run manifest. The manifest has fixed model, runtime, hardware, and sampling groups; text fields accept only short path-free labels; slashes, backslashes, URI schemes, credential-like values, endpoint fields, arbitrary fields, and runtime flag values are rejected. Runtime flag names can be recorded without copying argument values that may contain a model path or secret. Leave unknown measurements out or null; do not infer hardware or model details. A manifest makes runs easier to identify and compare but does not turn an unrun quality metric into evidence or justify a model/runtime choice.
+
 ## Software-in-loop path without physical devices
 
 After a free local Linux VM or equivalent is available, run the setup web service and browser flow for real inside an isolated network namespace. Where the environment permits, run dnsmasq as the actual DHCP/DNS service with synthetic clients. Keep hostapd, NetworkManager, and Wi-Fi-driver events mocked; run responsive browser automation at phone-sized viewports instead of claiming physical-phone coverage.

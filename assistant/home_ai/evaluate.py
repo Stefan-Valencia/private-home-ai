@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import statistics
@@ -12,6 +13,132 @@ from .agent import HOME_TOOL, SEARCH_TOOL
 from .config import Settings
 from .documents import DocumentStore
 from .server import HomeAIService
+
+
+REPORT_SCHEMA_VERSION = 1
+RUN_METADATA_SCHEMA_VERSION = 1
+MAX_RUN_METADATA_BYTES = 16 * 1024
+_METADATA_SECRET_PATTERN = re.compile(
+    r"https?://|file:|(?:api[_-]?key|token|password|secret|authorization)\s*[:=]|"
+    r"\bbearer\s+\S+|-----BEGIN\s+[^-]*PRIVATE KEY-----|"
+    r"(?:gh[pousr]_|github_pat_|hf_|glpat-|xox[baprs]-|(?:sk|rk)[_-])[A-Za-z0-9_-]{16,}|"
+    r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b",
+    re.IGNORECASE,
+)
+_METADATA_LABEL_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._+()\-]{0,127}$")
+
+
+def empty_run_metadata() -> dict[str, Any]:
+    return {
+        "schema_version": RUN_METADATA_SCHEMA_VERSION,
+        "model": {"revision": None, "quantization": None, "context_tokens": None},
+        "runtime": {"name": None, "version": None, "build": None, "flags": []},
+        "hardware": {"name": None, "os": None, "kernel": None, "driver": None},
+        "sampling": {"temperature": None, "top_p": None, "seed": None},
+    }
+
+
+def _metadata_text(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("Run metadata contains an invalid text field.")
+    text = value.strip()
+    if (
+        not _METADATA_LABEL_PATTERN.fullmatch(text)
+        or any(ord(character) < 32 or ord(character) == 127 for character in text)
+        or _METADATA_SECRET_PATTERN.search(text)
+    ):
+        raise ValueError("Run metadata text must be a short, non-sensitive label without paths or endpoints.")
+    return text
+
+
+def validate_run_metadata(value: object) -> dict[str, Any]:
+    """Validate an allowlisted evaluation manifest without accepting endpoints or free-form notes."""
+    if not isinstance(value, dict):
+        raise ValueError("Run metadata must be a JSON object.")
+    allowed_groups = {"schema_version", "model", "runtime", "hardware", "sampling"}
+    if set(value) - allowed_groups:
+        raise ValueError("Run metadata includes an unsupported field.")
+    version = value.get("schema_version")
+    if isinstance(version, bool) or version != RUN_METADATA_SCHEMA_VERSION:
+        raise ValueError("Run metadata schema_version must be 1.")
+
+    output = empty_run_metadata()
+    group_fields = {
+        "model": {"revision", "quantization", "context_tokens"},
+        "runtime": {"name", "version", "build", "flags"},
+        "hardware": {"name", "os", "kernel", "driver"},
+        "sampling": {"temperature", "top_p", "seed"},
+    }
+    for group, fields in group_fields.items():
+        raw_group = value.get(group, {})
+        if not isinstance(raw_group, dict) or set(raw_group) - fields:
+            raise ValueError("Run metadata includes an invalid or unsupported group field.")
+        for field_name in fields:
+            if field_name not in raw_group:
+                continue
+            item = raw_group[field_name]
+            if group == "model" and field_name == "context_tokens":
+                if item is not None and (
+                    isinstance(item, bool) or not isinstance(item, int) or not 1 <= item <= 1_000_000
+                ):
+                    raise ValueError("Run metadata context_tokens must be an integer from 1 to 1000000.")
+                output[group][field_name] = item
+            elif group == "runtime" and field_name == "flags":
+                if not isinstance(item, list) or len(item) > 64:
+                    raise ValueError("Run metadata runtime.flags must be a list of option names.")
+                flags = item
+                if any(
+                    not isinstance(flag, str)
+                    or len(flag) > 64
+                    or not re.fullmatch(r"--[A-Za-z0-9][A-Za-z0-9-]*", flag)
+                    or re.search(r"key|token|password|secret|authorization", flag, re.IGNORECASE)
+                    for flag in flags
+                ):
+                    raise ValueError("Run metadata runtime.flags accepts option names only, without values or paths.")
+                output[group][field_name] = flags
+            elif group == "sampling" and field_name in {"temperature", "top_p"}:
+                maximum = 2 if field_name == "temperature" else 1
+                if item is not None and (
+                    isinstance(item, bool)
+                    or not isinstance(item, (int, float))
+                    or not 0 <= item <= maximum
+                ):
+                    raise ValueError("Run metadata sampling values are outside their accepted range.")
+                output[group][field_name] = item
+            elif group == "sampling" and field_name == "seed":
+                if item is not None and (
+                    isinstance(item, bool) or not isinstance(item, int) or not 0 <= item <= 4_294_967_295
+                ):
+                    raise ValueError("Run metadata sampling.seed must be an integer from 0 to 4294967295.")
+                output[group][field_name] = item
+            else:
+                output[group][field_name] = _metadata_text(item)
+    return output
+
+
+def load_run_metadata(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return empty_run_metadata()
+    try:
+        with path.open("rb") as metadata_file:
+            raw = metadata_file.read(MAX_RUN_METADATA_BYTES + 1)
+    except OSError:
+        raise ValueError("Could not read the run metadata file.") from None
+    if len(raw) > MAX_RUN_METADATA_BYTES:
+        raise ValueError("Run metadata file exceeds the 16 KiB limit.")
+    try:
+        decoded = raw.decode("utf-8")
+        value = json.loads(decoded)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ValueError("Run metadata must be valid UTF-8 JSON.") from None
+    return validate_run_metadata(value)
+
+
+def dataset_sha256(dataset: dict[str, list[dict[str, Any]]]) -> str:
+    canonical = json.dumps(dataset, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 FACTS = (
@@ -363,9 +490,13 @@ def _make_document_store(dataset: dict[str, list[dict[str, Any]]]) -> DocumentSt
 
 
 def evaluate_retrieval_baseline(
-    dataset: dict[str, list[dict[str, Any]]] | None = None, *, limit: int | None = None
+    dataset: dict[str, list[dict[str, Any]]] | None = None,
+    *,
+    limit: int | None = None,
+    run_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     dataset = dataset or build_synthetic_dataset()
+    metadata = validate_run_metadata(run_metadata) if run_metadata is not None else empty_run_metadata()
     cases = dataset["cases"][:limit] if limit is not None else dataset["cases"]
     store = _make_document_store(dataset)
     scored: list[bool] = []
@@ -380,6 +511,9 @@ def evaluate_retrieval_baseline(
         store.close()
     recall = _rate(scored)
     return {
+        "report_schema_version": REPORT_SCHEMA_VERSION,
+        "dataset_sha256": dataset_sha256(dataset),
+        "run_metadata": metadata,
         "cases_with_expected_documents": len(scored),
         "recall_at_5": recall,
         "gate": 0.90,
@@ -394,12 +528,14 @@ def run_model_evaluation(
     limit: int | None = None,
     timeout_seconds: int = 300,
     model: Any | None = None,
+    run_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if limit is not None and limit < 1:
         raise ValueError("Evaluation limit must be a positive integer.")
     if timeout_seconds < 1:
         raise ValueError("Evaluation timeout must be a positive integer.")
     dataset = dataset or build_synthetic_dataset()
+    metadata = validate_run_metadata(run_metadata) if run_metadata is not None else empty_run_metadata()
     cases = dataset["cases"][:limit] if limit is not None else dataset["cases"]
     document_store = _make_document_store(dataset)
     case_results: list[dict[str, Any]] = []
@@ -456,7 +592,7 @@ def run_model_evaluation(
         if tool_call_attempts
         else None
     )
-    retrieval = evaluate_retrieval_baseline(dataset, limit=limit)
+    retrieval = evaluate_retrieval_baseline(dataset, limit=limit, run_metadata=metadata)
     metrics = {
         "cases": len(case_results),
         "route_accuracy": route_accuracy,
@@ -485,6 +621,9 @@ def run_model_evaluation(
     }
     gates = evaluate_quality_gates(metrics)
     return {
+        "report_schema_version": REPORT_SCHEMA_VERSION,
+        "dataset_sha256": dataset_sha256(dataset),
+        "run_metadata": metadata,
         "mode": "local-model",
         "model": settings.model_name,
         "metrics": metrics,
@@ -503,14 +642,22 @@ def main() -> None:
     )
     parser.add_argument("--limit", type=int, help="Evaluate only the first N cases.")
     parser.add_argument("--timeout-seconds", type=int, default=300, help="Per-request timeout for local model runs.")
+    parser.add_argument("--metadata-file", type=Path, help="Optional validated JSON file describing this evaluation run.")
     args = parser.parse_args()
     dataset = build_synthetic_dataset()
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be a positive integer.")
     if args.timeout_seconds < 1:
         parser.error("--timeout-seconds must be a positive integer.")
+    try:
+        run_metadata = load_run_metadata(args.metadata_file)
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.retrieval_only:
-        report = {"mode": "retrieval-only", **evaluate_retrieval_baseline(dataset, limit=args.limit)}
+        report = {
+            "mode": "retrieval-only",
+            **evaluate_retrieval_baseline(dataset, limit=args.limit, run_metadata=run_metadata),
+        }
     else:
         settings = Settings.from_env()
         report = run_model_evaluation(
@@ -518,6 +665,7 @@ def main() -> None:
             dataset,
             limit=args.limit,
             timeout_seconds=args.timeout_seconds,
+            run_metadata=run_metadata,
         )
     print(json.dumps(report, indent=2))
     if report["passed"] is False:
