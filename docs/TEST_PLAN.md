@@ -38,6 +38,7 @@ This plan defines evidence to gather; it does not claim any checks have already 
 - Evaluate the two synthetic text-only follow-up cases with deterministic models; confirm prior user/assistant messages reach the model, fact recall and context-only tool/delegation gates are reported separately, and reports omit prompts, history, and answers.
 - Confirm an assistant model input-budget rejection returns a clear instruction to start a new chat or shorten the request.
 - Send an unexpected model/backend exception containing a synthetic canary and confirm the chat API returns only a generic error; verify explicitly safe busy, timeout, unavailable, and usage-limit errors remain actionable.
+- If inference times out while cancellation cleanup is pending, keep the single inference slot busy until the task exits; verify the slot is released for the next request after cleanup.
 - Exercise malformed tool arguments in both the manager and specialist, then a valid retry; verify the evaluator reports aggregate attempt, validation-success, and error counts without retaining argument values.
 - Confirm specialist results and retrieved excerpts are labeled as untrusted evidence and a prohibited tool handler never runs, including when a deterministic model attempts an unauthorized action after seeing an injected document.
 - Run `python -m home_ai.evaluate --retrieval-only` and record the fixed synthetic set's FTS5 Recall@5 against the proposed 90% gate.
