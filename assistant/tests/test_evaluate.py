@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pydantic_ai import ModelMessage, ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
@@ -28,11 +29,12 @@ from home_ai.evaluate import (
 
 
 class EvaluationTests(unittest.TestCase):
-    def test_dataset_has_twenty_synthetic_documents_and_forty_cases(self) -> None:
+    def test_dataset_has_twenty_synthetic_documents_and_forty_two_cases(self) -> None:
         dataset = build_synthetic_dataset()
         self.assertEqual(len(dataset["documents"]), 20)
-        self.assertEqual(len(dataset["cases"]), 40)
-        self.assertEqual(len({case["id"] for case in dataset["cases"]}), 40)
+        self.assertEqual(len(dataset["cases"]), 42)
+        self.assertEqual(len({case["id"] for case in dataset["cases"]}), 42)
+        self.assertEqual(sum(bool(case.get("history")) for case in dataset["cases"]), 2)
         self.assertTrue(all(document["filename"].startswith("Synthetic_") for document in dataset["documents"]))
 
     def test_retrieval_baseline_meets_initial_recall_gate(self) -> None:
@@ -105,7 +107,7 @@ class EvaluationTests(unittest.TestCase):
 
         report = json.loads(output.getvalue())
         self.assertEqual(report["mode"], "retrieval-only")
-        self.assertEqual(report["report_schema_version"], 1)
+        self.assertEqual(report["report_schema_version"], 2)
         self.assertEqual(report["run_metadata"]["model"]["revision"], "4f23d8a")
         self.assertEqual(report["dataset_sha256"], dataset_sha256(build_synthetic_dataset()))
         self.assertIn("cases_with_expected_documents", report)
@@ -120,6 +122,8 @@ class EvaluationTests(unittest.TestCase):
             "abstention_accuracy": 1.0,
             "schema_valid_tool_argument_rate": 1.0,
             "direct_tool_free_rate": 1.0,
+            "followup_required_term_accuracy": 1.0,
+            "followup_direct_tool_free_rate": 1.0,
             "injection_non_disclosure": 1.0,
         }
         gates = evaluate_quality_gates(metrics)
@@ -142,6 +146,15 @@ class EvaluationTests(unittest.TestCase):
         metrics["required_term_accuracy"] = None
         gates = evaluate_quality_gates(metrics)
         self.assertIsNone(gates["required_term_accuracy"])
+
+        metrics["required_term_accuracy"] = 1.0
+        metrics["followup_required_term_accuracy"] = 0.89
+        gates = evaluate_quality_gates(metrics)
+        self.assertFalse(gates["followup_required_term_accuracy"])
+        metrics["followup_required_term_accuracy"] = 1.0
+        metrics["followup_direct_tool_free_rate"] = 0.99
+        gates = evaluate_quality_gates(metrics)
+        self.assertFalse(gates["followup_direct_tool_free_rate"])
 
     def test_route_uses_executed_specialist_capability(self) -> None:
         self.assertEqual(route_from_tool_trace([]), "direct")
@@ -201,7 +214,54 @@ class EvaluationTests(unittest.TestCase):
         self.assertNotIn("prompt", report)
         self.assertNotIn("answer", report["cases"][0])
 
-    def test_direct_gate_counts_invalid_and_unknown_tool_calls(self) -> None:
+    def test_model_runner_scores_followup_history_separately(self) -> None:
+        dataset = build_synthetic_dataset()
+        followup_cases = [case for case in dataset["cases"] if case.get("history")]
+        dataset["cases"] = followup_cases
+        observed_messages: list[list[ModelMessage]] = []
+        answers = {
+            "What color did I mention?": "The sample color was amber.",
+            "How much morning sun did you say it needs?": "Six hours of morning sun.",
+        }
+
+        def fake_model(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            observed_messages.append(messages)
+            user_prompts = [
+                part.content
+                for message in messages
+                if isinstance(message, ModelRequest)
+                for part in message.parts
+                if isinstance(part, UserPromptPart)
+            ]
+            return ModelResponse(parts=[TextPart(answers[user_prompts[-1]])])
+
+        report = run_model_evaluation(
+            Settings(), dataset, limit=2, timeout_seconds=30, model=FunctionModel(fake_model)
+        )
+
+        metrics = report["metrics"]
+        self.assertEqual(metrics["followup_cases_evaluated"], 2)
+        self.assertEqual(metrics["followup_required_term_accuracy"], 1.0)
+        self.assertEqual(metrics["followup_direct_cases_evaluated"], 2)
+        self.assertEqual(metrics["followup_direct_tool_free_rate"], 1.0)
+        self.assertTrue(report["gates"]["followup_required_term_accuracy"])
+        self.assertTrue(report["gates"]["followup_direct_tool_free_rate"])
+        self.assertEqual(metrics["tool_call_attempts"], 0)
+        self.assertEqual(metrics["delegation_attempts"], 0)
+        self.assertEqual(len(observed_messages), 2)
+        first_user_text = [
+            part.content
+            for message in observed_messages[0]
+            if isinstance(message, ModelRequest)
+            for part in message.parts
+            if isinstance(part, UserPromptPart)
+        ]
+        self.assertIn("The sample color is amber.", first_user_text)
+        self.assertEqual(first_user_text[-1], "What color did I mention?")
+        self.assertNotIn("The sample color is amber.", json.dumps(report))
+        self.assertNotIn("What color did I mention?", json.dumps(report))
+
+    def test_direct_gate_counts_invalid_and_unknown_tool_calls(self) -> None
         dataset = build_synthetic_dataset()
         dataset["cases"] = [case for case in dataset["cases"] if case["id"].startswith("direct_")]
         turns = 0
