@@ -9,6 +9,11 @@ const documentCount = document.querySelector("#document-count");
 const modelStatus = document.querySelector("#model-status");
 const statusDot = document.querySelector("#status-dot");
 const modelCheckButton = document.querySelector("#model-check-button");
+const newChatButton = document.querySelector("#new-chat-button");
+const MAX_HISTORY_MESSAGES = 10;
+const MAX_CONTEXT_CHARS = 12_000;
+const WELCOME_MESSAGE = "Hi. Add a text or PDF document, then ask me about it. This prototype uses a local model and synthetic home status only. Follow-ups stay in this page until you start a new chat or refresh.";
+let conversationHistory = [];
 
 function addMessage(role, text) {
   const item = document.createElement("div");
@@ -107,26 +112,48 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const prompt = promptField.value.trim();
   if (!prompt || sendButton.disabled) return;
+  const historyChars = conversationHistory.reduce((total, message) => total + message.content.length, 0);
+  if (
+    conversationHistory.length > MAX_HISTORY_MESSAGES
+    || historyChars + prompt.length > MAX_CONTEXT_CHARS
+  ) {
+    addMessage("assistant", "This chat has reached its temporary context limit. Start a new chat or shorten your question to continue.");
+    return;
+  }
   addMessage("user", prompt);
   promptField.value = "";
   sendButton.disabled = true;
+  newChatButton.disabled = true;
   sendButton.textContent = "Thinking…";
   try {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, history: conversationHistory }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "The assistant could not answer.");
     addMessage("assistant", result.answer);
+    conversationHistory.push(
+      { role: "user", content: prompt },
+      { role: "assistant", content: result.answer },
+    );
   } catch (error) {
     addMessage("assistant", error.message || "The local assistant could not complete that request.");
   } finally {
     sendButton.disabled = false;
+    newChatButton.disabled = false;
     sendButton.innerHTML = 'Send <span aria-hidden="true">↗</span>';
     promptField.focus();
   }
+});
+
+newChatButton.addEventListener("click", () => {
+  if (sendButton.disabled) return;
+  conversationHistory = [];
+  messageList.replaceChildren();
+  addMessage("assistant", WELCOME_MESSAGE);
+  promptField.focus();
 });
 
 promptField.addEventListener("keydown", (event) => {
@@ -157,6 +184,7 @@ fileInput.addEventListener("change", async () => {
   }
 });
 
+addMessage("assistant", WELCOME_MESSAGE);
 void loadStatus();
 void loadDocuments();
 modelCheckButton.addEventListener("click", () => void loadStatus());

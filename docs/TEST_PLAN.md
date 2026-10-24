@@ -31,6 +31,8 @@ This plan defines evidence to gather; it does not claim any checks have already 
 
 ## Software-in-loop assistant checks
 - Exercise direct response and one manager-to-specialist document-search flow with deterministic fake models.
+- Verify follow-up questions receive only bounded user/assistant text history, reject client-supplied tool/system messages and oversized context, and confirm **New chat** or refresh clears history without writing it to browser storage or SQLite.
+- Confirm an assistant model input-budget rejection returns a clear instruction to start a new chat or shorten the request.
 - Exercise malformed tool arguments in both the manager and specialist, then a valid retry; verify the evaluator reports aggregate attempt, validation-success, and error counts without retaining argument values.
 - Confirm specialist results and retrieved excerpts are labeled as untrusted evidence and a prohibited tool handler never runs, including when a deterministic model attempts an unauthorized action after seeing an injected document.
 - Run `python -m home_ai.evaluate --retrieval-only` and record the fixed synthetic set's FTS5 Recall@5 against the proposed 90% gate.

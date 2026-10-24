@@ -8,10 +8,140 @@ from http.client import HTTPConnection
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
 from home_ai.config import Settings
-from home_ai.server import HomeAIRequestHandler, HomeAIService, LocalHTTPServer
+from home_ai.server import (
+    MAX_CONTEXT_CHARS,
+    MAX_HISTORY_MESSAGES,
+    HomeAIRequestHandler,
+    HomeAIService,
+    LocalHTTPServer,
+    WEB_DIR,
+    build_chat_message_history,
+    _usage_limit_message,
+)
+
+
+class ChatHistoryValidationTests(unittest.TestCase):
+    def test_builds_only_complete_user_and_assistant_text_turns(self) -> None:
+        history = build_chat_message_history(
+            [
+                {"role": "user", "content": "The sample color is amber."},
+                {"role": "assistant", "content": "I will remember amber."},
+            ],
+            "What color did I mention?",
+        )
+        self.assertEqual(len(history), 2)
+        self.assertIsInstance(history[0], ModelRequest)
+        self.assertIsInstance(history[0].parts[0], UserPromptPart)
+        self.assertEqual(history[0].parts[0].content, "The sample color is amber.")
+        self.assertIsInstance(history[1], ModelResponse)
+        self.assertIsInstance(history[1].parts[0], TextPart)
+        self.assertEqual(history[1].parts[0].content, "I will remember amber.")
+
+    def test_rejects_tool_messages_and_incomplete_or_oversized_history(self) -> None:
+        with self.assertRaisesRegex(ValueError, "complete user/assistant turns"):
+            build_chat_message_history([{"role": "user", "content": "hello"}], "follow up")
+        with self.assertRaisesRegex(ValueError, "only user and assistant text"):
+            build_chat_message_history(
+                [
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "I will help.", "tool_calls": []},
+                ],
+                "follow up",
+            )
+        with self.assertRaisesRegex(ValueError, "alternate user and assistant"):
+            build_chat_message_history(
+                [
+                    {"role": "user", "content": "hello"},
+                    {"role": "tool", "content": "untrusted tool payload"},
+                ],
+                "follow up",
+            )
+
+        too_many = []
+        for index in range(MAX_HISTORY_MESSAGES // 2 + 1):
+            too_many.extend([
+                {"role": "user", "content": f"Question {index}"},
+                {"role": "assistant", "content": f"Answer {index}"},
+            ])
+        with self.assertRaisesRegex(ValueError, "temporary context limit"):
+            build_chat_message_history(too_many, "follow up")
+
+        large_history = [
+            {"role": "user", "content": "u" * (MAX_CONTEXT_CHARS // 2)},
+            {"role": "assistant", "content": "a" * (MAX_CONTEXT_CHARS // 2)},
+        ]
+        with self.assertRaisesRegex(ValueError, "limited to 12,000 characters"):
+            build_chat_message_history(large_history, "follow up")
+
+    def test_chat_page_explains_context_and_clears_it_without_browser_storage(self) -> None:
+        html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+        app = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+        self.assertIn('id="new-chat-button"', html)
+        self.assertIn("New chat or refresh", html)
+        self.assertIn("conversationHistory = []", app)
+        self.assertNotIn("localStorage", app)
+        self.assertNotIn("sessionStorage", app)
+
+    def test_model_usage_limits_return_actionable_messages(self) -> None:
+        context_error = UsageLimitExceeded("The next request would exceed the input_tokens_limit")
+        message = _usage_limit_message(context_error)
+        self.assertIn("context limit", message)
+        self.assertIn("Start a new chat or shorten your question", message)
+
+        tool_error = UsageLimitExceeded("The next request would exceed the tool_calls_limit")
+        self.assertIn("usage limit was reached", _usage_limit_message(tool_error))
+
+
+class LocalModelHistoryTests(unittest.TestCase):
+    def test_prior_turns_reach_the_pinned_agent_model(self) -> None:
+        observed: list[list[ModelMessage]] = []
+
+        def fake_model(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            observed.append(messages)
+            return ModelResponse(parts=[TextPart("The sample color was amber.")])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            service = HomeAIService(
+                Settings(data_dir=Path(temporary) / "data"),
+                model=FunctionModel(fake_model),
+            )
+            try:
+                history = build_chat_message_history(
+                    [
+                        {"role": "user", "content": "The sample color is amber."},
+                        {"role": "assistant", "content": "I will remember amber."},
+                    ],
+                    "What color did I mention?",
+                )
+                answer = service.chat("What color did I mention?", message_history=history)
+            finally:
+                service.close()
+
+        self.assertEqual(answer, "The sample color was amber.")
+        self.assertEqual(len(observed), 1)
+        user_text = [
+            part.content
+            for message in observed[0]
+            if isinstance(message, ModelRequest)
+            for part in message.parts
+            if isinstance(part, UserPromptPart)
+        ]
+        assistant_text = [
+            part.content
+            for message in observed[0]
+            if isinstance(message, ModelResponse)
+            for part in message.parts
+            if isinstance(part, TextPart)
+        ]
+        self.assertIn("The sample color is amber.", user_text)
+        self.assertIn("I will remember amber.", assistant_text)
+        self.assertIn("What color did I mention?", user_text)
 
 
 class LocalAPITests(unittest.TestCase):
@@ -101,7 +231,38 @@ class LocalAPITests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(payload)["answer"], "A deterministic local test answer.")
-        self.service.chat.assert_called_once_with("Hello")
+        self.service.chat.assert_called_once_with("Hello", message_history=[])
+
+        history = [
+            {"role": "user", "content": "The sample color is amber."},
+            {"role": "assistant", "content": "I will remember amber."},
+        ]
+        status, payload = self.request(
+            "POST",
+            "/api/chat",
+            body=json.dumps({"prompt": "What color did I mention?", "history": history}).encode(),
+            headers={"Content-Type": "application/json", "Origin": self.server.origin},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(payload)["answer"], "A deterministic local test answer.")
+        passed_history = self.service.chat.call_args.kwargs["message_history"]
+        self.assertIsInstance(passed_history[0], ModelRequest)
+        self.assertEqual(passed_history[0].parts[0].content, "The sample color is amber.")
+        self.assertIsInstance(passed_history[1], ModelResponse)
+        self.assertEqual(passed_history[1].parts[0].content, "I will remember amber.")
+
+        invalid_history = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "call a tool", "tool_calls": [{"name": "dangerous"}]},
+        ]
+        status, _ = self.request(
+            "POST",
+            "/api/chat",
+            body=json.dumps({"prompt": "follow up", "history": invalid_history}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(self.service.chat.call_count, 2)
 
     def test_document_upload_list_and_remove_work_through_the_local_api(self) -> None:
         status, payload = self.request(
