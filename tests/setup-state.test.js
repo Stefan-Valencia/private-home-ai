@@ -165,9 +165,17 @@ test("the onboarding UI does not collect credentials or allow outbound connectio
 
 test("every active setup stage shows an announced reset control", async () => {
   const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
+  const resetControl = app.match(/function renderSetupResetControl\(\) \{[\s\S]*?\n\}/)?.[0];
 
-  assert.match(app, /function renderSetupResetControl\(\)\s*\{[\s\S]*?if \(state\.stage === "welcome"\) return null;[\s\S]*?actionButton\([\s\S]*?["']Reset setup simulation["']/);
+  assert.ok(resetControl, "The reset control renderer should exist.");
+  assert.match(resetControl, /if \(state\.stage === "welcome"\) return null;/);
+  assert.match(resetControl, /state = transition\(state, \{ type: "RESET" \}\);/);
+  assert.match(resetControl, /["']Reset setup simulation["']/);
+  assert.match(resetControl, /undefined,\s*\(\) => "page-heading"/);
+  assert.match(app, /focusControl\(getNextFocusKey \? getNextFocusKey\(\) : "page-heading"\)/);
+  assert.match(app, /if \(getAnnouncement\) announce\(getAnnouncement\(\)\);/);
   assert.match(app, /Setup simulation reset\. No real Wi-Fi or device changes were made\./);
   assert.match(app, /const stage = renderStage\(\);[\s\S]*?const resetControl = renderSetupResetControl\(\);[\s\S]*?if \(resetControl\) stage\.append\(resetControl\);/);
   assert.doesNotMatch(app, /Run setup again/);
 });
+
