@@ -80,7 +80,7 @@ The numeric attempt limit and cooldown, browser/native credential mechanism, and
 
 ## Safe software-only work while hardware is unavailable
 
-Progress can continue with a clearly labeled simulation that uses synthetic device names and identifiers only. It can exercise the owner-facing lifecycle—start a simulated authorization window, enroll a simulated device, list devices, revoke one, expire an invitation, and reset the simulation—and reject invalid transitions. It must not generate or persist real credentials, read a physical button, claim network authentication, or present itself as secure pairing. A later implementation must replace the simulated authorization input with a tested hardware event and an approved protocol.
+Progress can continue with a clearly labeled simulation that uses synthetic device names and identifiers only. Keep the “Simulation only” disclosure visible in every state, including active authorization, enrolled, expired, revoked, reset, error, and retry states. It can exercise the owner-facing lifecycle—start a simulated authorization window, enroll a simulated device, list devices, revoke one, expire an invitation, and reset the simulation—and reject invalid transitions. It must not generate or persist real credentials or trust records, read a physical button, claim network authentication, or present itself as secure pairing. A later implementation must replace the simulated authorization input with a tested hardware event and an approved protocol.
 
 ## Evidence needed before security claims
 
