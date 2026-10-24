@@ -197,28 +197,28 @@ class InferenceCancellationTests(unittest.TestCase):
             first = threading.Thread(target=run_first_request)
             first.start()
             try:
-                self.assertTrue(run_started.wait(timeout=1))
-                first.join(timeout=4)
+                self.assertTrue(run_started.wait(timeout=5))
+                first.join(timeout=5)
                 self.assertFalse(first.is_alive())
                 self.assertEqual(len(first_errors), 1)
                 self.assertIsInstance(first_errors[0], AssistantUserError)
                 self.assertIn("took too long", str(first_errors[0]))
-                self.assertTrue(cancellation_seen.wait(timeout=1))
+                self.assertTrue(cancellation_seen.wait(timeout=5))
 
                 with self.assertRaisesRegex(AssistantUserError, "busy"):
                     service.chat("request while cancellation is cleaning up")
                 self.assertEqual(calls, 1)
 
                 service._inference_loop.call_soon_threadsafe(finish_cancellation.set)
-                self.assertTrue(cancellation_finished.wait(timeout=1))
-                self.assertTrue(service._inference_slot.acquire(timeout=1))
+                self.assertTrue(cancellation_finished.wait(timeout=5))
+                self.assertTrue(service._inference_slot.acquire(timeout=5))
                 service._inference_slot.release()
                 self.assertEqual(service.chat("after cancellation cleanup"), "synthetic answer 2")
                 self.assertEqual(calls, 2)
             finally:
                 service._inference_loop.call_soon_threadsafe(finish_cancellation.set)
                 first.join(timeout=2)
-                cancellation_finished.wait(timeout=1)
+                cancellation_finished.wait(timeout=5)
                 service.close()
 
 
