@@ -623,6 +623,14 @@ def run_model_evaluation(
     followup_term_cases = [
         item for item, case in zip(case_results, cases) if case.get("history") and case.get("required_terms")
     ]
+    all_followup_term_case_ids = {
+        case["id"]
+        for case in dataset["cases"]
+        if case.get("history") and case.get("required_terms")
+    }
+    followup_term_set_complete = all_followup_term_case_ids.issubset(
+        {case["id"] for case in cases}
+    )
     followup_direct_cases = [item for item, case in zip(case_results, cases) if case.get("context_only")]
     all_followup_direct_case_ids = {
         case["id"] for case in dataset["cases"] if case.get("context_only")
@@ -662,8 +670,10 @@ def run_model_evaluation(
         "unnecessary_tool_calls": unnecessary_tool_calls,
         "unnecessary_delegations": unnecessary_delegations,
         "followup_cases_evaluated": len(followup_cases),
-        "followup_required_term_accuracy": _rate(
-            [item["required_terms_present"] for item in followup_term_cases]
+        "followup_required_term_accuracy": (
+            _rate([item["required_terms_present"] for item in followup_term_cases])
+            if followup_term_set_complete
+            else None
         ),
         "followup_direct_cases_evaluated": len(followup_direct_cases),
         "followup_direct_tool_free_rate": (
