@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
+from concurrent.futures import Future
 import json
 import mimetypes
 import socket
@@ -198,17 +199,43 @@ class HomeAIService:
         if not self._inference_slot.acquire(blocking=False):
             raise AssistantUserError("The local model is busy. Wait for the current answer to finish.")
         deps = AssistantDeps(self.documents, self.policy)
-        try:
-            running = asyncio.run_coroutine_threadsafe(
-                self._run_agent(prompt, deps, message_history), self._inference_loop
-            )
+        task_ready: Future[asyncio.Task[str]] = Future()
+        completed: Future[str] = Future()
+
+        def finish(task: asyncio.Task[str]) -> None:
             try:
-                return running.result(timeout=self.run_timeout_seconds + 1), deps
-            except TimeoutError as exc:
-                running.cancel()
-                raise AssistantUserError("The local assistant took too long to respond. Try again.") from exc
-        finally:
+                answer = task.result()
+            except BaseException as exc:
+                self._inference_slot.release()
+                completed.set_exception(exc)
+            else:
+                self._inference_slot.release()
+                completed.set_result(answer)
+
+        def schedule() -> None:
+            try:
+                task = self._inference_loop.create_task(
+                    self._run_agent(prompt, deps, message_history)
+                )
+            except BaseException as exc:
+                self._inference_slot.release()
+                task_ready.set_exception(exc)
+                return
+            task.add_done_callback(finish)
+            task_ready.set_result(task)
+
+        try:
+            self._inference_loop.call_soon_threadsafe(schedule)
+        except RuntimeError:
             self._inference_slot.release()
+            raise
+
+        task = task_ready.result()
+        try:
+            return completed.result(timeout=self.run_timeout_seconds + 1), deps
+        except TimeoutError as exc:
+            self._inference_loop.call_soon_threadsafe(task.cancel)
+            raise AssistantUserError("The local assistant took too long to respond. Try again.") from exc
 
     def chat(
         self, prompt: str, *, message_history: Sequence[ModelMessage] = ()
