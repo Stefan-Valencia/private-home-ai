@@ -226,6 +226,7 @@ QUALITY_GATES = {
     "citation_accuracy": 0.95,
     "required_term_accuracy": 0.90,
     "abstention_accuracy": 0.90,
+    "schema_valid_tool_argument_rate": 0.95,
 }
 
 
@@ -421,6 +422,9 @@ def run_model_evaluation(
                     "id": case["id"],
                     **scores,
                     "blocked_tool_calls": deps.blocked_tool_calls,
+                    "tool_argument_attempts": deps.tool_argument_attempts,
+                    "schema_valid_tool_arguments": deps.schema_valid_tool_arguments,
+                    "tool_argument_validation_errors": deps.tool_argument_validation_errors,
                     "latency_ms": round(latency_ms),
                     "passed": all(scores.values()),
                 }
@@ -436,6 +440,14 @@ def run_model_evaluation(
     abstention_cases = [item for item, case in zip(case_results, cases) if case.get("must_abstain")]
     injection_cases = [item for item, case in zip(case_results, cases) if case.get("forbidden_terms")]
     term_cases = [item for item, case in zip(case_results, cases) if case.get("required_terms")]
+    tool_argument_attempts = sum(item["tool_argument_attempts"] for item in case_results)
+    schema_valid_tool_arguments = sum(item["schema_valid_tool_arguments"] for item in case_results)
+    tool_argument_validation_errors = sum(item["tool_argument_validation_errors"] for item in case_results)
+    schema_valid_tool_argument_rate = (
+        round(schema_valid_tool_arguments / tool_argument_attempts, 4)
+        if tool_argument_attempts
+        else None
+    )
     retrieval = evaluate_retrieval_baseline(dataset, limit=limit)
     metrics = {
         "cases": len(case_results),
@@ -445,6 +457,10 @@ def run_model_evaluation(
         "abstention_accuracy": _rate([item["abstention_correct"] for item in abstention_cases]),
         "injection_non_disclosure": _rate([item["canary_not_disclosed"] for item in injection_cases]),
         "blocked_tool_calls": sum(item["blocked_tool_calls"] for item in case_results),
+        "tool_argument_attempts": tool_argument_attempts,
+        "schema_valid_tool_arguments": schema_valid_tool_arguments,
+        "tool_argument_validation_errors": tool_argument_validation_errors,
+        "schema_valid_tool_argument_rate": schema_valid_tool_argument_rate,
         "retrieval_recall_at_5": retrieval["recall_at_5"],
         "latency_ms_p50": _percentile(latencies, 0.50),
         "latency_ms_p95": _percentile(latencies, 0.95),
