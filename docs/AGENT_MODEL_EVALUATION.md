@@ -11,8 +11,8 @@ For the first implementation:
 - Keep the orchestrator and model behind a replaceable provider interface.
 - Give the orchestrator a fixed registry of narrowly scoped tools and named agents. It may choose among them, but cannot create new tools, call arbitrary network services, or run a shell.
 - Start with local document search and simulated home status as read-only tools. Do not connect real devices or perform state-changing home actions in this slice.
-- Treat uploaded documents and tool results as untrusted content, not as instructions to the assistant.
-- Keep prompts, documents, retrieval indexes, and inference on the appliance by default. Do not add telemetry or a cloud model fallback.
+- Treat uploaded documents, tool results, and every subagent result as untrusted data, not as instructions. Separate delegate histories do not separate privileges: give each agent an explicit least-privilege dependency/tool allowlist, gate delegation and every child tool call in application policy, and validate delegate outputs before the manager uses them.
+- Keep prompts, documents, retrieval indexes, and inference on the appliance by default. Require a configured appliance-local inference endpoint, fail closed with a clear unavailable message if it is down, and never fall back to a remote model. Verify that prompts, documents, retrieval passages, and traces are not sent to remote services. Model and software downloads are a separate, explicit networked provisioning step; do not download them at runtime or add telemetry.
 - Require an application policy check before every tool call. A future device-control capability must have its own authorization and confirmation design before implementation.
 
 This gives the user a single prompt while keeping permissions in application code instead of relying on a model to police itself.
@@ -49,16 +49,16 @@ Compare harness/model pairs on:
 - Tool selection and schema-valid arguments, including avoiding unnecessary calls.
 - Answer support and citation correctness for document questions.
 - Correct abstention when local evidence is missing.
-- Resistance to instructions embedded in retrieved content.
+- Resistance to instructions embedded in retrieved content or returned by a delegate. Seed both with instructions to reveal a synthetic canary and invoke a tool; record the tool trace and pass only if the canary is absent from the answer and the disallowed call is rejected before execution.
 - Median and tail response time, peak memory, and stability under a fixed context and request limit.
 
 Use a deterministic provider for app and policy tests. Use the same synthetic prompts and tool permissions for each local model. Record harness version, model revision, quantization, runtime, context, hardware, and all measurements. Do not present vendor benchmarks as our own results or set a default based only on parameter count.
 
 ## Software-in-loop path without physical devices
 
-Continue with the browser onboarding simulation and add an isolated Linux VM or network-namespace setup service with mocked access-point and NetworkManager events. Exercise DHCP/DNS, setup-page reachability, wrong-password, router-unavailable, restart, and reset paths using synthetic state. Run responsive-browser automation at phone-sized viewports.
+After a free local Linux VM or equivalent is available, run the setup web service and browser flow for real inside an isolated network namespace. Where the environment permits, run dnsmasq as the actual DHCP/DNS service with synthetic clients. Keep hostapd, NetworkManager, and Wi-Fi-driver events mocked; run responsive browser automation at phone-sized viewports instead of claiming physical-phone coverage.
 
-This can validate service logic, state transitions, and browser behavior. It cannot verify radio coverage, access-point compatibility, real phone captive-portal behavior, or appliance recovery under power loss. Keep those items in Milestones 1 and 4 for the target device.
+Report coverage by component: real setup service and browser behavior, plus DHCP/DNS integration only if those services actually ran. Mocked access-point and NetworkManager events provide application/state-machine coverage only. This path cannot verify radio coverage, access-point compatibility, real phone captive-portal behavior, or appliance recovery under power loss. Keep those items in Milestones 1 and 4 for the target device.
 
 ## Effort and expected result
 
