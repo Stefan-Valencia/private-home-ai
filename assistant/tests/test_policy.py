@@ -8,6 +8,7 @@ from pydantic_ai_harness.guardrails import ToolCallInfo
 
 from home_ai.agent import (
     DELEGATE_TOOL,
+    SEARCH_TOOL,
     AssistantDeps,
     ToolPolicy,
     _tool_gate,
@@ -35,7 +36,9 @@ class ToolPolicyTests(unittest.TestCase):
                 tool_call_id="3",
             )
             self.assertEqual(_tool_gate(context, unknown_agent).action, "block")
-            self.assertEqual(deps.tool_trace, ["search_local_documents", "delete_device", DELEGATE_TOOL])
+            self.assertEqual(deps.attempted_tool_trace, ["search_local_documents", "delete_device", DELEGATE_TOOL])
+            self.assertEqual(deps.policy_admitted_tool_trace, ["search_local_documents"])
+            self.assertEqual(deps.policy_admitted_tool_calls, 1)
             self.assertEqual(deps.blocked_tool_calls, 2)
         finally:
             deps.documents.close()
@@ -109,7 +112,9 @@ class ToolPolicyTests(unittest.TestCase):
             self.assertEqual(_tool_gate(context, first).action, "allow")
             self.assertEqual(_tool_gate(context, second).action, "block")
             self.assertEqual(deps.delegations_used, 1)
-            self.assertEqual(deps.tool_trace, [DELEGATE_TOOL, DELEGATE_TOOL])
+            self.assertEqual(deps.attempted_tool_trace, [DELEGATE_TOOL, DELEGATE_TOOL])
+            self.assertEqual(deps.policy_admitted_tool_trace, [DELEGATE_TOOL])
+            self.assertEqual(deps.policy_admitted_tool_calls, 1)
             self.assertEqual(deps.blocked_tool_calls, 1)
         finally:
             deps.documents.close()
@@ -125,6 +130,8 @@ class ToolPolicyTests(unittest.TestCase):
             result = _tool_gate(SimpleNamespace(deps=deps), call)
             self.assertEqual(result.action, "block")
             self.assertEqual(deps.delegations_used, 0)
+            self.assertEqual(deps.attempted_tool_trace, [DELEGATE_TOOL])
+            self.assertEqual(deps.policy_admitted_tool_calls, 0)
             self.assertEqual(deps.blocked_tool_calls, 1)
         finally:
             deps.documents.close()
@@ -178,13 +185,17 @@ class ToolPolicyTests(unittest.TestCase):
 
         try:
             agent = build_assistant(Settings(), model=FunctionModel(fake_model))
+            deps = AssistantDeps(documents, ToolPolicy())
             result = agent.run_sync(
                 "When should I replace the boiler filter?",
-                deps=AssistantDeps(documents, ToolPolicy()),
+                deps=deps,
                 usage_limits=manager_usage_limits(),
                 timeout=30,
             )
             self.assertIn("every six months", result.output)
+            self.assertEqual(deps.policy_admitted_tool_calls, 2)
+            self.assertCountEqual(deps.policy_admitted_tool_trace, [DELEGATE_TOOL, SEARCH_TOOL])
+            self.assertCountEqual(deps.executed_capabilities, [DELEGATE_TOOL, SEARCH_TOOL])
             self.assertIn("[home-notes.txt, p. 1]", result.output)
             self.assertNotIn("CANARY-9A7", result.output)
             self.assertEqual(turns, 4)
