@@ -61,6 +61,7 @@ class AssistantDeps:
     tool_argument_attempts: int = 0
     schema_valid_tool_arguments: int = 0
     tool_argument_validation_errors: int = 0
+    delegation_attempts: int = 0
 
 
 class ToolArgumentMetrics(AbstractCapability[AssistantDeps]):
@@ -75,6 +76,8 @@ class ToolArgumentMetrics(AbstractCapability[AssistantDeps]):
         args: RawToolArgs,
     ) -> RawToolArgs:
         ctx.deps.tool_argument_attempts += 1
+        if call.tool_name == DELEGATE_TOOL:
+            ctx.deps.delegation_attempts += 1
         return args
 
     async def after_tool_validate(

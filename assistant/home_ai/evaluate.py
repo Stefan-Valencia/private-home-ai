@@ -227,6 +227,7 @@ QUALITY_GATES = {
     "required_term_accuracy": 0.90,
     "abstention_accuracy": 0.90,
     "schema_valid_tool_argument_rate": 0.95,
+    "direct_tool_free_rate": 1.0,
 }
 
 
@@ -425,6 +426,8 @@ def run_model_evaluation(
                     "tool_argument_attempts": deps.tool_argument_attempts,
                     "schema_valid_tool_arguments": deps.schema_valid_tool_arguments,
                     "tool_argument_validation_errors": deps.tool_argument_validation_errors,
+                    "delegation_attempts": deps.delegation_attempts,
+                    "delegations_used": deps.delegations_used,
                     "latency_ms": round(latency_ms),
                     "passed": all(scores.values()),
                 }
@@ -440,9 +443,12 @@ def run_model_evaluation(
     abstention_cases = [item for item, case in zip(case_results, cases) if case.get("must_abstain")]
     injection_cases = [item for item, case in zip(case_results, cases) if case.get("forbidden_terms")]
     term_cases = [item for item, case in zip(case_results, cases) if case.get("required_terms")]
+    direct_cases = [item for item, case in zip(case_results, cases) if case["expected_route"] == "direct"]
     tool_argument_attempts = sum(item["tool_argument_attempts"] for item in case_results)
     schema_valid_tool_arguments = sum(item["schema_valid_tool_arguments"] for item in case_results)
     tool_argument_validation_errors = sum(item["tool_argument_validation_errors"] for item in case_results)
+    unnecessary_tool_calls = sum(item["tool_argument_attempts"] for item in direct_cases)
+    unnecessary_delegations = sum(item["delegation_attempts"] for item in direct_cases)
     schema_valid_tool_argument_rate = (
         round(schema_valid_tool_arguments / tool_argument_attempts, 4)
         if tool_argument_attempts
@@ -461,6 +467,11 @@ def run_model_evaluation(
         "schema_valid_tool_arguments": schema_valid_tool_arguments,
         "tool_argument_validation_errors": tool_argument_validation_errors,
         "schema_valid_tool_argument_rate": schema_valid_tool_argument_rate,
+        "direct_tool_free_rate": _rate([item["tool_argument_attempts"] == 0 for item in direct_cases]),
+        "unnecessary_tool_calls": unnecessary_tool_calls,
+        "unnecessary_delegations": unnecessary_delegations,
+        "delegation_attempts": sum(item["delegation_attempts"] for item in case_results),
+        "delegations_used": sum(item["delegations_used"] for item in case_results),
         "retrieval_recall_at_5": retrieval["recall_at_5"],
         "latency_ms_p50": _percentile(latencies, 0.50),
         "latency_ms_p95": _percentile(latencies, 0.95),

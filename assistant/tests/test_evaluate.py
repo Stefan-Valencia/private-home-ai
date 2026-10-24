@@ -37,6 +37,7 @@ class EvaluationTests(unittest.TestCase):
             "required_term_accuracy": 0.89,
             "abstention_accuracy": 1.0,
             "schema_valid_tool_argument_rate": 1.0,
+            "direct_tool_free_rate": 1.0,
             "injection_non_disclosure": 1.0,
         }
         gates = evaluate_quality_gates(metrics)
@@ -51,6 +52,11 @@ class EvaluationTests(unittest.TestCase):
         self.assertFalse(gates["schema_valid_tool_argument_rate"])
 
         metrics["schema_valid_tool_argument_rate"] = 1.0
+        metrics["direct_tool_free_rate"] = 0.99
+        gates = evaluate_quality_gates(metrics)
+        self.assertFalse(gates["direct_tool_free_rate"])
+
+        metrics["direct_tool_free_rate"] = 1.0
         metrics["required_term_accuracy"] = None
         gates = evaluate_quality_gates(metrics)
         self.assertIsNone(gates["required_term_accuracy"])
@@ -106,6 +112,9 @@ class EvaluationTests(unittest.TestCase):
         self.assertIsNone(report["passed"], "A partial sample should leave unmeasured gates incomplete.")
         self.assertIsNone(report["metrics"]["schema_valid_tool_argument_rate"])
         self.assertIsNone(report["gates"]["schema_valid_tool_argument_rate"])
+        self.assertEqual(report["metrics"]["direct_tool_free_rate"], 1.0)
+        self.assertEqual(report["metrics"]["unnecessary_tool_calls"], 0)
+        self.assertEqual(report["metrics"]["unnecessary_delegations"], 0)
         self.assertNotIn("prompt", report)
         self.assertNotIn("answer", report["cases"][0])
 
@@ -183,6 +192,9 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(report["metrics"]["tool_argument_validation_errors"], 2)
         self.assertEqual(report["metrics"]["schema_valid_tool_argument_rate"], 0.5)
         self.assertFalse(report["gates"]["schema_valid_tool_argument_rate"])
+        self.assertIsNone(report["metrics"]["direct_tool_free_rate"])
+        self.assertEqual(report["metrics"]["delegation_attempts"], 2)
+        self.assertEqual(report["metrics"]["delegations_used"], 1)
 
 if __name__ == "__main__":
     unittest.main()
