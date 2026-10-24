@@ -12,10 +12,10 @@ from typing import Any
 from .agent import HOME_TOOL, SEARCH_TOOL
 from .config import Settings
 from .documents import DocumentStore
-from .server import HomeAIService
+from .server import HomeAIService, build_chat_message_history
 
 
-REPORT_SCHEMA_VERSION = 1
+REPORT_SCHEMA_VERSION = 2
 RUN_METADATA_SCHEMA_VERSION = 1
 MAX_RUN_METADATA_BYTES = 16 * 1024
 _METADATA_SECRET_PATTERN = re.compile(
@@ -333,6 +333,38 @@ HOME_PROMPTS = (
     "Can you control the heating system, or only describe the demo status?",
 )
 
+FOLLOWUP_CASES = (
+    {
+        "id": "followup_color",
+        "history": [
+            {"role": "user", "content": "The sample color is amber."},
+            {"role": "assistant", "content": "I will remember amber."},
+        ],
+        "prompt": "What color did I mention?",
+        "expected_route": "direct",
+        "expected_documents": [],
+        "expected_citations": [],
+        "required_terms": ["amber"],
+        "context_only": True,
+    },
+    {
+        "id": "followup_garden",
+        "history": [
+            {"role": "user", "content": "What does the synthetic garden guide say about basil sunlight?"},
+            {
+                "role": "assistant",
+                "content": "It says the basil planter gets six hours of morning sun each day.",
+            },
+        ],
+        "prompt": "How much morning sun did you say it needs?",
+        "expected_route": "direct",
+        "expected_documents": [],
+        "expected_citations": [],
+        "required_terms": ["six hours", "morning sun"],
+        "context_only": True,
+    },
+)
+
 ABSTENTION_MARKERS = (
     "do not contain",
     "does not contain",
@@ -356,6 +388,8 @@ QUALITY_GATES = {
     "abstention_accuracy": 0.90,
     "schema_valid_tool_argument_rate": 0.95,
     "direct_tool_free_rate": 1.0,
+    "followup_required_term_accuracy": 0.90,
+    "followup_direct_tool_free_rate": 1.0,
 }
 
 
@@ -428,6 +462,8 @@ def build_synthetic_dataset() -> dict[str, list[dict[str, Any]]]:
                 "required_terms": ["simulation"],
             }
         )
+
+    cases.extend(FOLLOWUP_CASES)
 
     return {"documents": documents, "cases": cases}
 
@@ -551,7 +587,8 @@ def run_model_evaluation(
         )
         for case in cases:
             started = time.perf_counter()
-            answer, deps = service.chat_with_trace(case["prompt"])
+            message_history = build_chat_message_history(case.get("history", []), case["prompt"])
+            answer, deps = service.chat_with_trace(case["prompt"], message_history=message_history)
             latency_ms = (time.perf_counter() - started) * 1000
             latencies.append(latency_ms)
             scores = score_case(case, answer, route_from_tool_trace(deps.tool_trace))
@@ -582,6 +619,25 @@ def run_model_evaluation(
     term_cases = [item for item, case in zip(case_results, cases) if case.get("required_terms")]
     direct_cases = [item for item, case in zip(case_results, cases) if case["id"] in DIRECT_CASE_IDS]
     direct_set_complete = DIRECT_CASE_IDS.issubset({case["id"] for case in cases})
+    followup_cases = [item for item, case in zip(case_results, cases) if case.get("history")]
+    followup_term_cases = [
+        item for item, case in zip(case_results, cases) if case.get("history") and case.get("required_terms")
+    ]
+    all_followup_term_case_ids = {
+        case["id"]
+        for case in dataset["cases"]
+        if case.get("history") and case.get("required_terms")
+    }
+    followup_term_set_complete = all_followup_term_case_ids.issubset(
+        {case["id"] for case in cases}
+    )
+    followup_direct_cases = [item for item, case in zip(case_results, cases) if case.get("context_only")]
+    all_followup_direct_case_ids = {
+        case["id"] for case in dataset["cases"] if case.get("context_only")
+    }
+    followup_direct_set_complete = all_followup_direct_case_ids.issubset(
+        {case["id"] for case in cases}
+    )
     tool_call_attempts = sum(item["tool_call_attempts"] for item in case_results)
     schema_valid_tool_arguments = sum(item["schema_valid_tool_arguments"] for item in case_results)
     tool_argument_validation_errors = sum(item["tool_argument_validation_errors"] for item in case_results)
@@ -613,6 +669,23 @@ def run_model_evaluation(
         "direct_cases_evaluated": len(direct_cases),
         "unnecessary_tool_calls": unnecessary_tool_calls,
         "unnecessary_delegations": unnecessary_delegations,
+        "followup_cases_evaluated": len(followup_cases),
+        "followup_required_term_accuracy": (
+            _rate([item["required_terms_present"] for item in followup_term_cases])
+            if followup_term_set_complete
+            else None
+        ),
+        "followup_direct_cases_evaluated": len(followup_direct_cases),
+        "followup_direct_tool_free_rate": (
+            _rate(
+                [
+                    item["tool_call_attempts"] == 0 and item["delegation_attempts"] == 0
+                    for item in followup_direct_cases
+                ]
+            )
+            if followup_direct_set_complete
+            else None
+        ),
         "delegation_attempts": sum(item["delegation_attempts"] for item in case_results),
         "policy_admitted_delegations": sum(item["policy_admitted_delegations"] for item in case_results),
         "retrieval_recall_at_5": retrieval["recall_at_5"],

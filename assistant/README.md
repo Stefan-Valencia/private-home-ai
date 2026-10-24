@@ -50,7 +50,7 @@ To evaluate routing, citations, abstention, prompt-injection resistance, and res
 python -m home_ai.evaluate
 ```
 
-The runner uses 20 synthetic documents and 40 fixed requests. It reports per-case pass indicators and summary metrics without printing the prompts or model answers. It uses the same loopback endpoint validation and no-proxy client as the app, and never falls back to a remote model. Use `--limit N` for a shorter sample or `--timeout-seconds N` to bound each request; a partial sample reports unmeasured quality gates as incomplete. Model-specific quality results still need to be collected; the deterministic retrieval baseline alone does not measure model answer quality.
+The runner uses 20 synthetic documents and 42 fixed requests, including two text-only follow-up cases. It reports per-case pass indicators and summary metrics without printing prompts, history, or model answers. It measures follow-up fact recall separately and requires context-only follow-ups to avoid tool and specialist calls. It uses the same loopback endpoint validation and no-proxy client as the app, and never falls back to a remote model. Use `--limit N` for a shorter sample or `--timeout-seconds N` to bound each request; a partial sample reports unmeasured quality gates as incomplete. Model-specific quality results still need to be collected; the deterministic retrieval baseline alone does not measure model answer quality.
 
 ## Privacy and limits
 
