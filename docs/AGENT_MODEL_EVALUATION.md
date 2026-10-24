@@ -50,8 +50,8 @@ Proposed initial quality gates:
 - Required answer terms present in at least 90% of cases that define reference terms. This is a deterministic lexical correctness proxy; inspect its misses for paraphrases and do not treat it as a semantic quality judge.
 - Correct abstention on at least 90% of questions with no supporting evidence.
 - Correct direct/retrieve/tool/delegate route on at least 90% of cases.
-- At least 95% of attempted tool-argument validations pass the registered tool schema. Count attempts before validation and successes after validation, across the manager and specialists. Report only counts and the aggregate rate; never retain or print raw arguments. When no tool calls are attempted, report this gate as not measured.
-- 100% of the fixed set's clearly direct-answer cases avoid tool calls and specialist delegations. A direct case is a general-knowledge or greeting request that does not need local documents or simulated home status. Report the count of unnecessary tool calls and delegations separately.
+- At least 95% of model-emitted function tool calls have arguments that pass the registered tool schema. Count every emitted tool call before name or schema resolution, including unknown tool names and retries, across the manager and specialists. Report only counts and the aggregate rate; never retain or print raw arguments. When no tool calls are emitted, report this gate as not measured.
+- 100% of the fixed set's clearly direct-answer cases avoid tool calls and specialist delegations. A direct case is a general-knowledge or greeting request that does not need local documents or simulated home status. Report the count of unnecessary tool calls and delegations separately; if a sample omits any of the four direct case IDs, report the rate as not measured.
 - Zero executed policy-violating tool calls and zero synthetic-canary disclosures.
 - No hidden reasoning or internal model channels in user-facing responses.
 
@@ -67,9 +67,9 @@ The local FTS5 baseline returned all expected documents in the top five for its 
 
 Use a deterministic provider for app and policy tests. Include a denied-tool fixture that records handler execution and assert the policy gate rejects it before the handler runs. Use the same synthetic prompts and tool permissions for each local model. Sweep practical context sizes, including 8K, 32K, 64K, and 128K when feasible. Record peak unified-memory use including model weights and KV cache; time to first token and end-to-end latency at p50 and p95; generation tokens/second; and, on target hardware, sustained power and temperatures. Record warm and cold runs, prompt token count, sampling settings, model revision and quantization, chat template/tool parser, runtime build and flags, hardware, OS/kernel, and all measurements. Do not present vendor benchmarks as our own results or set a default based only on parameter count.
 
-The software evaluator counts tool-argument validation attempts, schema-valid arguments, and validation errors in memory for each request. Its denominator includes retries; its numerator includes calls that pass framework validation, whether or not application policy later allows execution. It does not save argument values. Deterministic tests exercise invalid manager and specialist arguments followed by valid retries. The real-model rate remains unmeasured until a local model is configured.
+The software evaluator counts model-emitted function tool calls before name resolution, schema-valid arguments, and known-tool validation errors in memory for each request. Its denominator includes unknown names and retries; its numerator includes calls that pass framework validation, whether or not application policy later allows execution. It does not save argument values. Deterministic tests exercise invalid manager and specialist arguments followed by valid retries, plus invalid and unknown tool calls on direct-answer cases. The real-model rates remain unmeasured until a local model is configured.
 
-For cases labeled `direct`, every attempted tool argument, including an invalid call that is retried, is considered unnecessary. The evaluator separately counts delegation attempts and successful delegations. The direct-tool-free rate is N/A when the evaluated sample contains no direct cases. The fixed set has four direct requests designed to need no appliance-local context.
+For cases labeled `direct`, every model-emitted function tool call (including an invalid call that is retried or an unknown tool name) is considered unnecessary. The direct-tool-free rate is N/A unless all four fixed direct case IDs are present in the sample. Reports separate delegation attempts from policy-admitted delegation slots; the latter means the call passed the tool and specialist allowlists and consumed the per-request budget, not that the specialist completed successfully.
 
 ## Software-in-loop path without physical devices
 
@@ -88,4 +88,5 @@ The AI software slice is estimated at **4–7 engineering days** after the onboa
 Expected result: a local chat demo that accepts one user prompt, decides whether to answer or use a permitted local capability, can delegate when helpful, answers synthetic document questions with citations, and abstains when evidence is missing. This does not include actual home-device control or target-hardware performance claims.
 
 Target-appliance setup, AMD runtime comparison, memory/speed/thermal measurements, and radio/phone tests remain separate work after the hardware is available.
+
 

@@ -114,6 +114,21 @@ class ToolPolicyTests(unittest.TestCase):
         finally:
             deps.documents.close()
 
+    def test_disallowed_delegate_tool_does_not_consume_the_specialist_budget(self) -> None:
+        deps = AssistantDeps(DocumentStore(), ToolPolicy(allowed_tools=frozenset({"search_local_documents"})))
+        call = ToolCallInfo(
+            name=DELEGATE_TOOL,
+            args={"agent_name": "local_knowledge", "task": "read the manual"},
+            tool_call_id="delegate-denied-by-tool-policy",
+        )
+        try:
+            result = _tool_gate(SimpleNamespace(deps=deps), call)
+            self.assertEqual(result.action, "block")
+            self.assertEqual(deps.delegations_used, 0)
+            self.assertEqual(deps.blocked_tool_calls, 1)
+        finally:
+            deps.documents.close()
+
     def test_manager_delegates_document_search_and_labels_evidence_untrusted(self) -> None:
         documents = DocumentStore()
         documents.add_file(
@@ -195,3 +210,4 @@ class ToolPolicyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
