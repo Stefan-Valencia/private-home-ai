@@ -34,3 +34,7 @@ Status: accepted for the first Milestone 1 implementation slice (2026-10-24).
 
 The first setup experience is a browser-only simulation with synthetic values. It does not access networking hardware, accept Wi-Fi credentials, generate keys, or authorize a real device. This lets the customer journey and state transitions be reviewed without presenting simulated behavior as appliance control. Revisit the boundary when the target Linux device is available for physical setup and recovery tests.
 
+### Delegated PR approval and merge authority
+Status: accepted at owner direction (2026-10-24).
+
+An independent project-vision subagent reviews each PR against the project brief, roadmap, and decision log. When it explicitly approves, all required checks pass, the PR is mergeable, and no relevant security/quality blocker or unresolved material decision remains, the lead agent is authorized to merge without a second owner confirmation. Merge stacked PRs in dependency order. This authority covers merges only; releases, external deployments, visibility changes, paid cloud spending, and material privacy/security decisions still require owner approval.
