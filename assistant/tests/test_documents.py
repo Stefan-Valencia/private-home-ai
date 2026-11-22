@@ -159,6 +159,25 @@ class DocumentStoreTests(unittest.TestCase):
         self.assertFalse(self.store.delete(summary.document_id))
         self.assertFalse(self.store.delete("../not-an-id"))
 
+    def test_document_removal_persists_after_reopening_the_index(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            database = Path(temporary) / "documents.sqlite3"
+            store = DocumentStore(database)
+            try:
+                removed = store.add_file("synthetic-cabinet.txt", b"Fictional linen humidity settings.")
+                kept = store.add_file("synthetic-shelf.txt", b"Fictional display dimming settings.")
+                self.assertTrue(store.delete(removed.document_id))
+            finally:
+                store.close()
+
+            reopened = DocumentStore(database)
+            try:
+                self.assertEqual(reopened.list_documents(), [kept])
+                self.assertEqual(reopened.search("linen humidity"), [])
+                self.assertEqual(reopened.search("display dimming")[0].document_id, kept.document_id)
+            finally:
+                reopened.close()
+
     @unittest.skipUnless(os.name == "posix", "POSIX owner-only permission bits")
     def test_persistent_index_uses_owner_only_permissions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

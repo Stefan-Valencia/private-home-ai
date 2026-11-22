@@ -2,6 +2,8 @@
 
 A local-first home AI appliance designed to make private, on-device AI as simple to set up as a home router.
 
+The home appliance is the first step toward a private collaborator that learns to help individuals and organizations within permissions they control. See the [product vision](docs/PRODUCT_VISION.md).
+
 ## MVP goals
 
 - Set up from a phone through a temporary appliance Wi-Fi network and browser-based wizard.
@@ -19,7 +21,7 @@ The current hardware evaluation target is an AMD Ryzen AI Max+ 395 system with 1
 
 The initial MVP focuses on local-network setup and use. Secure remote access, fleet management, enterprise multi-user permissions, and cloud inference are later decisions.
 
-See the project brief and roadmap for requirements and milestones.
+See the [project brief](docs/PROJECT_BRIEF.md), [roadmap](docs/ROADMAP.md), and [first hardware validation session](docs/HARDWARE_VALIDATION.md).
 
 ## Local AI software prototype
 

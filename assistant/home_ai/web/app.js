@@ -77,7 +77,7 @@ async function loadDocuments({ focusDocumentId = null, restoreRemovalFocus = fal
           });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || "The document could not be removed.");
-          uploadStatus.textContent = `${doc.filename} removed from the local index.`;
+          uploadStatus.textContent = `${doc.filename} removed from the local index. Use New chat to clear earlier answers from this page.`;
           await loadDocuments({ focusDocumentId: nextDocumentId, restoreRemovalFocus: true });
         } catch (error) {
           uploadStatus.textContent = error.message || "The document could not be removed.";
@@ -151,6 +151,7 @@ form.addEventListener("submit", async (event) => {
 newChatButton.addEventListener("click", () => {
   if (sendButton.disabled) return;
   conversationHistory = [];
+  promptField.value = "";
   messageList.replaceChildren();
   addMessage("assistant", WELCOME_MESSAGE);
   promptField.focus();

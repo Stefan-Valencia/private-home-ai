@@ -2,6 +2,8 @@
 
 This plan defines evidence to gather; it does not claim any checks have already run.
 
+Use the [hardware validation runbook](HARDWARE_VALIDATION.md) for the first spare Linux PC and target appliance sessions.
+
 ## Development-only onboarding simulation
 - Verify the state machine follows welcome, temporary setup network, demo identity, simulated physical pairing, test-network selection, connection success/failure, retry, ready, and reset states.
 - Verify invalid transitions fail at every stage and reset returns to the initial state, including from partial setup.
@@ -42,6 +44,8 @@ This plan defines evidence to gather; it does not claim any checks have already 
 - Exercise malformed tool arguments in both the manager and specialist, then a valid retry; verify the evaluator reports aggregate attempt, validation-success, and error counts without retaining argument values.
 - Confirm specialist results and retrieved excerpts are labeled as untrusted evidence and a prohibited tool handler never runs, including when a deterministic model attempts an unauthorized action after seeing an injected document.
 - Run `python -m home_ai.evaluate --retrieval-only` and record the fixed synthetic set's FTS5 Recall@5 against the proposed 90% gate.
+- Check that retrieval finds both manuals for the approved revision, revision comparison, unresolved conflict, and missing setting cases. Review model answers for correct attribution and uncertainty.
+- Remove a synthetic document, reopen the index, and verify it stays absent from the document list and search while an unrelated document still works. Confirm the removal message points users to **New chat** to clear earlier answers from the page.
 - Verify both evaluator modes emit report schema version 3 and keep manager-only route intent separate from aggregate tool attempts, policy-admitted calls, and executed capabilities; also verify the SHA-256 digest of the exact synthetic dataset and optional allowlisted run metadata, and confirm HTTP and file URLs, POSIX/Windows paths, endpoint fields, credential-shaped tokens, and runtime flag values are rejected without changing existing score fields.
 - When a local model is available, run `python -m home_ai.evaluate` and record route accuracy, citation accuracy, required-term accuracy, abstention accuracy, schema-valid tool-argument rate, direct-tool-free rate, unnecessary tool/delegation counts, synthetic-canary non-disclosure, p50/p95 latency, model revision, and serving settings. The argument rate is N/A when no tool calls are attempted; the direct-tool-free rate is N/A unless all four fixed direct case IDs are present in the sample. This command accepts only a validated loopback inference endpoint and does not download weights.
 - Confirm proxy environment variables cannot redirect inference or health requests, redirects are rejected, and API Host/Origin checks reject browser cross-origin requests.
