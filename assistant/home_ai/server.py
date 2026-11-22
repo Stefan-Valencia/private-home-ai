@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Sequence
 from concurrent.futures import Future
 import json
+import logging
 import mimetypes
 import socket
 import threading
@@ -449,11 +450,20 @@ class HomeAIRequestHandler(BaseHTTPRequestHandler):
             self._json(404, {"error": "Document not found."})
 
 
+def _suppress_pdf_parser_logs() -> None:
+    # Parser diagnostics can include parts of a document. The standalone app
+    # returns a generic ingestion error without writing raw diagnostics.
+    logger = logging.getLogger("pypdf")
+    logger.addHandler(logging.NullHandler())
+    logger.propagate = False
+
+
 def main() -> None:
     try:
         settings = Settings.from_env()
     except ConfigurationError as exc:
         raise SystemExit(str(exc)) from exc
+    _suppress_pdf_parser_logs()
     service = HomeAIService(settings)
     server: LocalHTTPServer | None = None
     try:

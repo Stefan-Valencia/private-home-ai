@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import socket
 import tempfile
 import threading
@@ -23,9 +24,19 @@ from home_ai.server import (
     HomeAIService,
     LocalHTTPServer,
     WEB_DIR,
+    _suppress_pdf_parser_logs,
     build_chat_message_history,
     _usage_limit_message,
 )
+
+
+class DiagnosticLoggingTests(unittest.TestCase):
+    def test_pdf_parser_messages_do_not_reach_the_process_log(self) -> None:
+        parser_logger = logging.getLogger("pypdf")
+        with patch.object(parser_logger, "handlers", []), patch.object(parser_logger, "propagate", True):
+            _suppress_pdf_parser_logs()
+            with self.assertNoLogs(level="WARNING"):
+                logging.getLogger("pypdf._cmap").warning("Synthetic PDF diagnostic")
 
 
 class ChatHistoryValidationTests(unittest.TestCase):

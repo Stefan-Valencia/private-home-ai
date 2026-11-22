@@ -41,19 +41,50 @@ from home_ai.evaluate import (
 
 
 class EvaluationTests(unittest.TestCase):
-    def test_dataset_has_twenty_synthetic_documents_and_forty_two_cases(self) -> None:
+    def test_dataset_has_twenty_four_synthetic_documents_and_forty_six_cases(self) -> None:
         dataset = build_synthetic_dataset()
-        self.assertEqual(len(dataset["documents"]), 20)
-        self.assertEqual(len(dataset["cases"]), 42)
-        self.assertEqual(len({case["id"] for case in dataset["cases"]}), 42)
+        self.assertEqual(len(dataset["documents"]), 24)
+        self.assertEqual(len(dataset["cases"]), 46)
+        self.assertEqual(len({case["id"] for case in dataset["cases"]}), 46)
         self.assertEqual(sum(bool(case.get("history")) for case in dataset["cases"]), 2)
         self.assertTrue(all(document["filename"].startswith("Synthetic_") for document in dataset["documents"]))
 
     def test_retrieval_baseline_meets_initial_recall_gate(self) -> None:
         report = evaluate_retrieval_baseline()
-        self.assertEqual(report["cases_with_expected_documents"], 28)
+        self.assertEqual(report["cases_with_expected_documents"], 32)
         self.assertGreaterEqual(report["recall_at_5"], report["gate"])
         self.assertTrue(report["passed"])
+        self.assertEqual(report["report_schema_version"], 3)
+        self.assertRegex(report["dataset_sha256"], r"^[a-f0-9]{64}$")
+        self.assertIn("run_metadata", report)
+
+    def test_manual_challenges_retrieve_all_evidence(self) -> None:
+        dataset = build_synthetic_dataset()
+        dataset["cases"] = [case for case in dataset["cases"] if case["id"].startswith("manual_")]
+        report = evaluate_retrieval_baseline(dataset)
+        self.assertEqual(report["cases_with_expected_documents"], 4)
+        self.assertEqual(report["recall_at_5"], 1.0)
+
+    def test_unresolved_manual_conflict_requires_abstention_and_both_citations(self) -> None:
+        case = next(
+            case for case in build_synthetic_dataset()["cases"] if case["id"] == "manual_unresolved_conflict"
+        )
+        blue, green = case["expected_citations"]
+        comparison = f"The blue copy says 23 minutes {blue}. The green copy says 29 minutes {green}."
+        unsupported_choice = score_case(case, f"{comparison} Use 23 minutes.", "retrieve")
+        cautious = score_case(case, f"{comparison} I cannot determine which copy is approved.", "retrieve")
+        missing_source = score_case(case, f"The blue copy says 23 minutes {blue}. I cannot determine approval.", "retrieve")
+        self.assertFalse(unsupported_choice["abstention_correct"])
+        self.assertTrue(all(cautious.values()))
+        self.assertFalse(missing_source["citations_correct"])
+        self.assertFalse(missing_source["required_terms_present"])
+
+    def test_required_answer_terms_do_not_match_citation_labels(self) -> None:
+        citation = "[Synthetic amber.txt, p. 1]"
+        case = {"expected_route": "retrieve", "expected_citations": [citation], "required_terms": ["amber"]}
+        scores = score_case(case, f"The source lists a color {citation}.", "retrieve")
+        self.assertTrue(scores["citations_correct"])
+        self.assertFalse(scores["required_terms_present"])
 
     def test_dataset_digest_is_stable_and_changes_with_dataset_content(self) -> None:
         dataset = build_synthetic_dataset()

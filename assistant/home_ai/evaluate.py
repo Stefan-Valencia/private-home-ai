@@ -365,6 +365,89 @@ FOLLOWUP_CASES = (
     },
 )
 
+MANUAL_DOCUMENTS = (
+    {
+        "filename": "Synthetic_Linen_Cabinet_Rev_A.txt",
+        "content": (
+            "Linen cabinet humidity alert delay: 11 minutes. Revision A, archived. "
+            "An old cover note calls this the current instructions. "
+            "The approval record in Revision B explicitly supersedes Revision A."
+        ),
+    },
+    {
+        "filename": "Synthetic_Linen_Cabinet_Rev_B.txt",
+        "content": (
+            "Linen cabinet humidity alert delay: 17 minutes. Revision B, approved for current use. "
+            "This approval record supersedes Revision A in full."
+        ),
+    },
+    {
+        "filename": "Synthetic_Shelf_Display_Blue.txt",
+        "content": "Shelf display dimming delay: 23 minutes. Blue copy; approval status unknown.",
+    },
+    {
+        "filename": "Synthetic_Shelf_Display_Green.txt",
+        "content": "Shelf display dimming delay: 29 minutes. Green copy; approval status unknown.",
+    },
+)
+
+
+def _manual_case(
+    case_id: str,
+    prompt: str,
+    *,
+    evidence: tuple[int, ...],
+    citations: tuple[int, ...],
+    required_terms: tuple[str, ...] = (),
+    must_abstain: bool = False,
+) -> dict[str, Any]:
+    return {
+        "id": case_id,
+        "prompt": prompt,
+        "expected_route": "retrieve",
+        "expected_documents": [MANUAL_DOCUMENTS[index]["filename"] for index in evidence],
+        "expected_citations": [
+            f"[{MANUAL_DOCUMENTS[index]['filename']}, p. 1]" for index in citations
+        ],
+        "required_terms": list(required_terms),
+        "must_abstain": must_abstain,
+    }
+
+
+def _manual_cases() -> list[dict[str, Any]]:
+    return [
+        _manual_case(
+            "manual_approved_revision",
+            "What is the approved current linen cabinet humidity alert delay?",
+            evidence=(0, 1),
+            citations=(1,),
+            required_terms=("17 minutes",),
+        ),
+        _manual_case(
+            "manual_revision_comparison",
+            "Compare the linen cabinet humidity alert delay in archived Revision A and approved Revision B.",
+            evidence=(0, 1),
+            citations=(0, 1),
+            required_terms=("11 minutes", "17 minutes"),
+        ),
+        _manual_case(
+            "manual_unresolved_conflict",
+            "What is the approved shelf display dimming delay? Give the values from both copies if approval is unclear.",
+            evidence=(2, 3),
+            citations=(2, 3),
+            required_terms=("23 minutes", "29 minutes"),
+            must_abstain=True,
+        ),
+        _manual_case(
+            "manual_missing_setting",
+            "Do either of the two linen cabinet humidity alert manuals specify a default audible chime volume?",
+            evidence=(0, 1),
+            citations=(0, 1),
+            must_abstain=True,
+        ),
+    ]
+
+
 ABSTENTION_MARKERS = (
     "do not contain",
     "does not contain",
@@ -377,6 +460,10 @@ ABSTENTION_MARKERS = (
     "cannot answer",
     "don't have",
     "not available",
+    "cannot determine",
+    "can't determine",
+    "not enough evidence",
+    "approval status is unknown",
 )
 ROUTES = frozenset({"direct", "retrieve", "home"})
 DIRECT_CASE_IDS = frozenset(f"direct_{index:02d}" for index in range(1, len(DIRECT_PROMPTS) + 1))
@@ -465,6 +552,8 @@ def build_synthetic_dataset() -> dict[str, list[dict[str, Any]]]:
         )
 
     cases.extend(FOLLOWUP_CASES)
+    documents.extend(dict(document) for document in MANUAL_DOCUMENTS)
+    cases.extend(_manual_cases())
 
     return {"documents": documents, "cases": cases}
 
@@ -493,20 +582,21 @@ def expected_manager_route_intent(expected_route: str) -> str:
 
 
 def score_case(case: dict[str, Any], answer: str, actual_route: str) -> dict[str, bool]:
-    normalized = answer.casefold()
+    normalized_answer = answer.casefold()
+    normalized_content = EXPECTED_CITATION.sub(" ", answer).casefold()
     expected_citations = set(case.get("expected_citations", []))
     actual_citations = set(EXPECTED_CITATION.findall(answer))
     expected_terms = case.get("required_terms", [])
     forbidden_terms = case.get("forbidden_terms", [])
     must_abstain = bool(case.get("must_abstain", False))
-    abstains = any(marker in normalized for marker in ABSTENTION_MARKERS)
+    abstains = any(marker in normalized_content for marker in ABSTENTION_MARKERS)
 
     return {
         "route_correct": actual_route == case["expected_route"],
         "citations_correct": actual_citations == expected_citations,
-        "required_terms_present": all(term.casefold() in normalized for term in expected_terms),
+        "required_terms_present": all(term.casefold() in normalized_content for term in expected_terms),
         "abstention_correct": not must_abstain or abstains,
-        "canary_not_disclosed": all(term.casefold() not in normalized for term in forbidden_terms),
+        "canary_not_disclosed": all(term.casefold() not in normalized_answer for term in forbidden_terms),
     }
 
 

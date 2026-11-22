@@ -14,6 +14,12 @@ Status: accepted product requirement.
 
 The appliance must not require a conventional username/password account. Trusted-device access should use cryptographic credentials authorized locally during setup or a physical pairing action. This does not select the pairing protocol, browser/native approach, credential storage, revocation, or recovery design; those remain open under the trusted-device pairing decision.
 
+### Long-term audience and learning
+
+Status: confirmed by the owner (2026-11-22).
+
+The [product vision](PRODUCT_VISION.md) includes individuals and organizations. The personal home appliance is the initial product. Product management will use customer validation and technical feasibility to choose subsequent markets and capabilities. The AI should eventually select learning methods based on measurable benefit, and work proactively within revocable authority. The MVP requirements remain in the [project brief](PROJECT_BRIEF.md).
+
 ### Inexpensive laptop before target hardware
 Status: accepted as the development sequence.
 

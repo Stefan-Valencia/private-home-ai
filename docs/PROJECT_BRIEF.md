@@ -1,5 +1,7 @@
 # Private Home AI Appliance: Project Brief
 
+This brief defines the home appliance MVP. The [product vision](PRODUCT_VISION.md) describes the long-term direction for individuals and organizations.
+
 ## Product goal
 Make a private local AI computer feel as easy to set up as a home router. The appliance stays in the home, serves a browser interface to trusted devices, and processes models and documents locally by default.
 
